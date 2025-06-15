@@ -5,8 +5,9 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
+import os
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-BOT_TOKEN = "7628097563:AAEEgVCCtSucect6WJ8oCx_IaLGUcsG0F0Q"  # Replace with your real token
 
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
