@@ -6,7 +6,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-BOT_TOKEN = ""
+BOT_TOKEN = "7628097563:AAEB0ipX_KQmAq3A4lM1dqxIB1glT45RDVE"
 # Main keyboard
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
