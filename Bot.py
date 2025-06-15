@@ -6,7 +6,7 @@ from telegram.ext import (
     ContextTypes,
 )
 import os
-BOT_TOKEN = os.environ["7628097563:AAFvePAB1EkfCMDWywZ6NM-il7oFlIiJpZc"]
+BOT_TOKEN = "7628097563:AAFvePAB1EkfCMDWywZ6NM-il7oFlIiJpZc"
 
 
 # Main keyboard
