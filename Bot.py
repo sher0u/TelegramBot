@@ -5,11 +5,9 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-import os
 
-BOT_TOKEN = "7628097563:AAEEgVCCtSucect6WJ8oCx_IaLGUcsG0F0Q"  # replace with your real token
+BOT_TOKEN = "7628097563:AAEEgVCCtSucect6WJ8oCx_IaLGUcsG0F0Q"  # Replace with your real token
 
-# Main keyboard (without the "Start" button)
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 قناة التلغرام", url="https://t.me/Kaader_Dz")],
@@ -19,13 +17,11 @@ def main_menu_keyboard():
         [InlineKeyboardButton("📘 دليلك الشامل", callback_data="guide_menu")],
     ])
 
-# Back button keyboard
 def back_button():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 رجوع", callback_data="Start")]
     ])
 
-# Translation services message
 TRANSLATION_MESSAGE = (
     "ترجمة أوراق رسمية 📑 إلى اللغة الروسية 🇷🇺:\n\n"
     "نوفر لكم خدمات ترجمة الأوراق الرسمية📑 إلى اللغة الروسية 🇷🇺 بأسعار تنافسية💰\n\n"
@@ -44,7 +40,6 @@ TRANSLATION_MESSAGE = (
     "أرسل اسمك، لقبك، رقمك، والوثائق التي تريد ترجمتها."
 )
 
-# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     greeting = (
         "البوت في مرحلة تحديث ⚙️\n\n"
@@ -57,21 +52,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.edit_message_text(greeting, reply_markup=main_menu_keyboard())
         context.user_data["last_message_id"] = update.callback_query.message.message_id
 
-# Callback handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Delete previous message if exists and not the same as current
     last_msg_id = context.user_data.get("last_message_id")
     chat_id = query.message.chat_id
     if last_msg_id and last_msg_id != query.message.message_id:
         try:
-            await query.message.chat.delete_message(last_msg_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=last_msg_id)
         except Exception:
-            pass  # ignore errors if deletion fails
+            pass  # Ignore if can't delete
 
-    # Save current message id
     context.user_data["last_message_id"] = query.message.message_id
 
     if query.data == "Start":
@@ -97,7 +89,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text("تم الضغط على: " + query.data, reply_markup=back_button())
 
-# Main bot setup
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
