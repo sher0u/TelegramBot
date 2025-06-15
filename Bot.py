@@ -9,6 +9,7 @@ import os
 BOT_TOKEN = "7628097563:AAFvePAB1EkfCMDWywZ6NM-il7oFlIiJpZc"
 
 
+
 # Main keyboard
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
