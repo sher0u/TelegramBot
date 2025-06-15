@@ -6,14 +6,12 @@ from telegram.ext import (
     ContextTypes,
 )
 import os
-BOT_TOKEN = "7628097563:AAEEgVCCtSucect6WJ8oCx_IaLGUcsG0F0Q"
 
+BOT_TOKEN = "7628097563:AAEEgVCCtSucect6WJ8oCx_IaLGUcsG0F0Q"  # replace with your real token
 
-
-# Main keyboard
+# Main keyboard (without the "Start" button)
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Start", callback_data="Start")],
         [InlineKeyboardButton("📢 قناة التلغرام", url="https://t.me/Kaader_Dz")],
         [InlineKeyboardButton("📺 YouTube", url="https://www.youtube.com/@Yousfi-Abdelkader")],
         [InlineKeyboardButton("💬 شات المجموعة", url="https://t.me/Kadet_Dz_Chat")],
@@ -21,7 +19,7 @@ def main_menu_keyboard():
         [InlineKeyboardButton("📘 دليلك الشامل", callback_data="guide_menu")],
     ])
 
-# Add a "Back" button to any section
+# Back button keyboard
 def back_button():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 رجوع", callback_data="Start")]
@@ -53,14 +51,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "يرجى حذف المحادثة وإعادة تشغيل البوت بالضغط على الزر 👇"
     )
     if update.message:
-        await update.message.reply_text(greeting, reply_markup=main_menu_keyboard())
+        sent_msg = await update.message.reply_text(greeting, reply_markup=main_menu_keyboard())
+        context.user_data["last_message_id"] = sent_msg.message_id
     elif update.callback_query:
         await update.callback_query.edit_message_text(greeting, reply_markup=main_menu_keyboard())
+        context.user_data["last_message_id"] = update.callback_query.message.message_id
 
 # Callback handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    # Delete previous message if exists and not the same as current
+    last_msg_id = context.user_data.get("last_message_id")
+    chat_id = query.message.chat_id
+    if last_msg_id and last_msg_id != query.message.message_id:
+        try:
+            await query.message.chat.delete_message(last_msg_id)
+        except Exception:
+            pass  # ignore errors if deletion fails
+
+    # Save current message id
+    context.user_data["last_message_id"] = query.message.message_id
 
     if query.data == "Start":
         await start(update, context)
@@ -88,7 +100,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Main bot setup
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
+
     print("🤖 Bot is running with all buttons and رجوع!")
     app.run_polling()
