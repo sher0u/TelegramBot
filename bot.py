@@ -5,14 +5,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-from flask import Flask
-import threading
-import os
-import asyncio
 
-BOT_TOKEN = "7628097563:AAE8jN4d5T7_zRjwvw6AwHx7oXrozvCACds"  # Replace with your real token
-
-# Your existing functions
+BOT_TOKEN = "7628097563:AAHz7LGKSkjIn8TKBC9nUjd5NNrBs9SlzHA"  # Replace with your real token
 
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
@@ -95,30 +89,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text("تم الضغط على: " + query.data, reply_markup=back_button())
 
-# --- Flask app part ---
-
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
-def home():
-    return "🤖 Bot is running!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    # Run Flask without debug, on all interfaces:
-    flask_app.run(host='0.0.0.0', port=port)
-
-async def main():
-    # Start Flask app in a thread
-    threading.Thread(target=run_flask).start()
-
-    # Start Telegram bot
+if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
 
     print("🤖 Bot is running with all buttons and رجوع!")
-    await app.run_polling()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    app.run_polling()
