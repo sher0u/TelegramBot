@@ -6,20 +6,20 @@ from telegram.ext import (
     ContextTypes,
 )
 
-BOT_TOKEN = "7628097563:AAHz7LGKSkjIn8TKBC9nUjd5NNrBs9SlzHA"  # Replace with your real token
+BOT_TOKEN = "#######################################################"  # Replace with your real token
 
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 قناة التلغرام", url="https://t.me/Kaader_Dz")],
         [InlineKeyboardButton("📺 YouTube", url="https://www.youtube.com/@Yousfi-Abdelkader")],
         [InlineKeyboardButton("💬 شات المجموعة", url="https://t.me/Kadet_Dz_Chat")],
-        [InlineKeyboardButton("📑 خدمات التسجيل و الترجمة", callback_data="translation_services")],
+        [InlineKeyboardButton("📑 خدمات التسجيل والترجمة, الاستشارة", callback_data="services_menu")],
         [InlineKeyboardButton("📘 دليلك الشامل", callback_data="guide_menu")],
     ])
 
-def back_button():
+def back_button(back_to="Start"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 رجوع", callback_data="Start")]
+        [InlineKeyboardButton("🔙 رجوع", callback_data=back_to)]
     ])
 
 TRANSLATION_MESSAGE = (
@@ -69,31 +69,110 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "Start":
         await start(update, context)
 
-    elif query.data == "translation_services":
-        await query.edit_message_text(TRANSLATION_MESSAGE, reply_markup=back_button())
-
-    elif query.data == "guide_menu":
+    # خدمات التسجيل و الترجمة قائمة
+    elif query.data == "services_menu":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🗺️ دليل التسجيل الجامعي", callback_data="uni_guide")],
-            [InlineKeyboardButton("📚 دليل السكن", callback_data="housing_guide")],
+            [InlineKeyboardButton("📚 خدمات التسجيل", callback_data="registration_services")],
+            [InlineKeyboardButton("📝 الترجمة", callback_data="translation_services")],
+            [InlineKeyboardButton("🗣️ اطلب الاستشارة", callback_data="request_consultation")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="Start")],
         ])
-        await query.edit_message_text("📘 دليلك الشامل – اختر أحد الأقسام:", reply_markup=keyboard)
+        await query.edit_message_text("📑 خدمات التسجيل و الترجمة – اختر أحد الخيارات:", reply_markup=keyboard)
 
-    elif query.data == "uni_guide":
-        await query.edit_message_text("📘 هذا هو دليل التسجيل الجامعي 📚.", reply_markup=back_button())
+    # خدمات التسجيل (يمكنك تعديل الرسالة حسب الحاجة)
+    elif query.data == "registration_services":
+        await query.edit_message_text(
+            "📚 خدمات التسجيل:\n\n"
+            "هنا يمكنك إضافة تفاصيل خدمات التسجيل التي تقدمها.\n"
+            "يمكنك تعديل هذه الرسالة لاحقًا حسب متطلباتك.",
+            reply_markup=back_button("services_menu")
+        )
 
-    elif query.data == "housing_guide":
-        await query.edit_message_text("🏠 هذا هو دليل السكن والخدمات 🏠.", reply_markup=back_button())
+    # الترجمة
+    elif query.data == "translation_services":
+        await query.edit_message_text(TRANSLATION_MESSAGE, reply_markup=back_button("services_menu"))
+
+    # اطلب الاستشارة
+    elif query.data == "request_consultation":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💬 Yousfi Abdelkader / Kader", url="https://t.me/Yousfi_Abdelkader")],
+            [InlineKeyboardButton("💬 Ramzi Peter", url="https://t.me/the_random_men")],
+            [InlineKeyboardButton("💬 وليد", url="https://t.me/Oualid_bel")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="services_menu")]
+        ])
+        await query.edit_message_text("🗣️ اختر المستشار الذي تريد التواصل معه:", reply_markup=keyboard)
+
+    # دليلك الشامل قائمة رئيسية
+    elif query.data == "guide_menu":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📄 الدليل قبل مجيئه إلى روسيا", callback_data="before_arrival")],
+            [InlineKeyboardButton("📑 الدليل بعد وصوله إلى روسيا", callback_data="after_arrival")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="Start")],
+        ])
+        await query.edit_message_text("📘 دليلك الشامل – اختر القسم:", reply_markup=keyboard)
+
+    # الدليل قبل مجيئه إلى روسيا (6 أزرار)
+    elif query.data == "before_arrival":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📌 دليل القبول في روسيا", callback_data="acceptance_guide")],
+            [InlineKeyboardButton("📄 الوثائق المطلوبة", callback_data="required_documents")],
+            [InlineKeyboardButton("🛂 طلب التأشيرة", callback_data="visa_application")],
+            [InlineKeyboardButton("📅 موعد التأشيرة", callback_data="visa_appointment")],
+            [InlineKeyboardButton("📞 معلومات الاتصال بالقنصلية الروسية في الجزائر", callback_data="russian_consulate_contact")],
+            [InlineKeyboardButton("✈️ معلومات الاتصال بشركة الخطوط الجوية الجزائرية", callback_data="airline_contact")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="guide_menu")],
+        ])
+        await query.edit_message_text("📄 الدليل قبل مجيئه إلى روسيا – اختر موضوعًا:", reply_markup=keyboard)
+
+    # الدليل بعد وصوله إلى روسيا (4 أزرار)
+    elif query.data == "after_arrival":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏦 كيفية فتح حساب بنكي في روسيا", callback_data="how_to_open_bank_account")],
+            [InlineKeyboardButton("📱 كيفية الحصول على شريحة هاتف (SIM Card)", callback_data="how_to_get_sim")],
+            [InlineKeyboardButton("🟩 كيفية الحصول على البطاقة الخضراء", callback_data="how_to_get_green_card")],
+            [InlineKeyboardButton("🆔 كيفية استخراج رقم التعريف الضريبي (ИНН) ورقم التأمين الاجتماعي (СНИЛС)", callback_data="how_to_get_tax_social")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="guide_menu")],
+        ])
+        await query.edit_message_text("📑 الدليل بعد وصوله إلى روسيا – اختر موضوعًا:", reply_markup=keyboard)
+
+    # ردود أزرار فرعية - يمكن تعديلها لاحقًا
+    elif query.data == "acceptance_guide":
+        await query.edit_message_text("📌 هنا شرح دليل القبول في روسيا ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "required_documents":
+        await query.edit_message_text("📄 الوثائق المطلوبة هي ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "visa_application":
+        await query.edit_message_text("🛂 هنا شرح طلب التأشيرة ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "visa_appointment":
+        await query.edit_message_text("📅 معلومات موعد التأشيرة ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "russian_consulate_contact":
+        await query.edit_message_text("📞 معلومات الاتصال بالقنصلية الروسية في الجزائر ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "airline_contact":
+        await query.edit_message_text("✈️ معلومات الاتصال بشركة الخطوط الجوية الجزائرية ...", reply_markup=back_button("before_arrival"))
+
+    elif query.data == "how_to_open_bank_account":
+        await query.edit_message_text("🏦 كيفية فتح حساب بنكي في روسيا ...", reply_markup=back_button("after_arrival"))
+
+    elif query.data == "how_to_get_sim":
+        await query.edit_message_text("📱 كيفية الحصول على شريحة هاتف (SIM Card) ...", reply_markup=back_button("after_arrival"))
+
+    elif query.data == "how_to_get_green_card":
+        await query.edit_message_text("🟩 كيفية الحصول على البطاقة الخضراء ...", reply_markup=back_button("after_arrival"))
+
+    elif query.data == "how_to_get_tax_social":
+        await query.edit_message_text("🆔 كيفية استخراج رقم التعريف الضريبي (ИНН) ورقم التأمين الاجتماعي (СНИЛС) ...", reply_markup=back_button("after_arrival"))
 
     else:
-        await query.edit_message_text("تم الضغط على: " + query.data, reply_markup=back_button())
+        await query.answer("هذا الزر غير معرف", show_alert=True)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-
-    print("🤖 Bot is running with all buttons and رجوع!")
+    print("Bot is running...")
     app.run_polling()
