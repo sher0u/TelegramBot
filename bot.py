@@ -6,8 +6,18 @@ from telegram.ext import (
     ContextTypes,
 )
 
-import os
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN ="7628097563:AAHWSwaT5XV46Np_BlaNzH2OVZOgSCUjXs0"
+
+async def delete_bot_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    messages = context.user_data.get("bot_messages", [])
+    for msg_id in messages:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
+    context.user_data["bot_messages"] = []
+
 
 
 def main_menu_keyboard():
@@ -29,12 +39,12 @@ def back_button(back_to="Start"):
 TRANSLATION_MESSAGE = (
     "ترجمة أوراق رسمية 📑 إلى اللغة الروسية 🇷🇺:\n\n"
     "نوفر لكم خدمات ترجمة الأوراق الرسمية📑 إلى اللغة الروسية 🇷🇺 بأسعار تنافسية💰\n\n"
-    "📗 جواز السفر: 2,560 دج أو 800 روبل\n"
-    "📋 شهادة بكالوريا: 3,520 دج أو 1100 روبل\n"
-    "📄 كشف نقاط البكالوريا: 4,200 دج أو 1300 روبل\n"
-    "🗒️ التحاليل: 1800 دج للورقة أو 600 روبل\n"
-    "📋 ديبلوم ليسونس أو ماستر: 3,500 دج أو 1100 روبل\n"
-    "📄 كشف نقاط ليسونس أو ماستر: 4,500 دج أو 1400 روبل\n\n"
+    "📗 جواز السفر: 1200  روبل\n"
+    "📋 شهادة بكالوريا: 1200 روبل\n"
+    "📄 كشف نقاط البكالوريا:  1300 روبل\n"
+    "🗒️ التحاليل: 700 روبل\n"
+    "📋 ديبلوم ليسونس أو ماستر: 1200  روبل\n"
+    "📄 كشف نقاط ليسونس أو ماستر: 1400 روبل\n\n"
     "ملاحظة:\n"
     "🔖 الأسعار لا تتغير لو كانت الأوراق موثقة في الوزارات.\n"
     "📨 كيفية الحصول على النسخ الأصلية يكون بالاتفاق مع الطالب سواء في الجزائر أو روسيا، وسعر التوصيل بالبريد على عاتق الطالب.\n\n"
@@ -73,17 +83,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "Start":
         await start(update, context)
 
-    # بيع وشراء الروبل
     elif query.data == "rub_exchange":
         text = (
-            "نقدم لعملائنا أسعار صرف العملات المتغيرة في كل ثانية، من خلال نظام محدث باستمرار يوميًا، "
+            "💰 نحن نقبل وسائل الدفع التالية:\n"
+            "💶 اليورو\n"
+            "💵 الدولار\n"
+            "💴 الروبل\n"
+            "💷 الدينار\n"
+            "💵 ليرة\n"
+            "🪙 العملات الرقمية (التشفير) – مثلBitcoin, USDT, وغيرها ✅\n\n"
+            "📌  نقدم لعملائنا أسعار صرف العملات المتغيرة في كل ثانية، من خلال نظام محدث باستمرار يوميًا، "
             "يعتمد على مصادر موثوقة من مؤسسات مصرفية رسمية وأسعار السوق الموازي في الجزائر، "
             "مما يتيح لهم مراقبة دقيقة لأسعار الصرف وتسهيل عمليات التحويل."
         )
+
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 تواصل معنا", url="https://t.me/Yousfi_Abdelkader")],
+            [InlineKeyboardButton("📩 تواصل معنا", url="https://t.me/Yousfi_Abdelkader")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="Start")]
         ])
+
         await query.edit_message_text(text, reply_markup=keyboard)
 
 
@@ -97,14 +115,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         await query.edit_message_text("📑 خدمات التسجيل و الترجمة – اختر أحد الخيارات:", reply_markup=keyboard)
 
-    # خدمات التسجيل (يمكنك تعديل الرسالة حسب الحاجة)
     elif query.data == "registration_services":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📩 تواصل الآن", url="https://t.me/Yousfi_Abdelkader")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="services_menu")]
+        ])
+
         await query.edit_message_text(
-            "📚 خدمات التسجيل:\n\n"
-            "هنا يمكنك إضافة تفاصيل خدمات التسجيل التي تقدمها.\n"
-            "يمكنك تعديل هذه الرسالة لاحقًا حسب متطلباتك.",
-            reply_markup=back_button("services_menu")
+            "🎓 لقد حصلت على شهادة البكالوريا؟\n"
+            "📚 تدرس في الجامعة؟\n"
+            "🌍 أو قررت تغيير مسارك الدراسي والدراسة في الخارج؟\n"
+            "حتى إن كان مستواك ثانوياً وترغب في الدراسة في معهد خارج بلدك، فكل هذه الحالات ✅ تؤهلك للسفر إلى **روسيا** 🇷🇺 بهدف الدراسة والحصول على شهادة قوية 💪 ومعترف بها دوليًا 🌐.\n\n"
+            "لكن 🤔 قد لا تعرف طريقة التسجيل، وتبحث عن وسيط موثوق 🤝 يساعدك ويوجهك من **التسجيل الأولي** 📝 إلى **الوصول لروسيا** ✈️، **الاستقرار في السكن الجامعي** 🏠، وبدء دراستك 📖 في الجامعة.\n\n"
+            "🎯 إذاً، أنت في المكان الصحيح!\n"
+            "ما عليك سوى اتباع خطوات التسجيل ✅\n"
+            "ونحن سنتكفل بكل شيء 👨‍🏫 من المرافقة إلى غاية وصولك الآمن وبداية مسارك الدراسي بثقة 💼 واطمئنان 🛡️.\n\n"
+            "هل ترغب في البدء؟ اضغط على الزر بالأسفل ⬇️ وسنكون معك خطوة بخطوة! 🛤️",
+            reply_markup=keyboard
         )
+
 
     # الترجمة
     elif query.data == "translation_services":
@@ -132,8 +161,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # الدليل قبل مجيئه إلى روسيا (6 أزرار)
     elif query.data == "before_arrival":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📌 دليل القبول في روسيا", callback_data="acceptance_guide")],
-            [InlineKeyboardButton("📄 الوثائق المطلوبة", callback_data="required_documents")],
+            [InlineKeyboardButton("📌 ملف الفيزا", callback_data="Visa_guide")],
+            [InlineKeyboardButton("📄استمارة الفيزا", callback_data="Visa_Forum")],
             [InlineKeyboardButton("🛂 طلب التأشيرة", callback_data="visa_application")],
             [InlineKeyboardButton("📅 موعد التأشيرة", callback_data="visa_appointment")],
             [InlineKeyboardButton("📞 معلومات الاتصال بالقنصلية الروسية في الجزائر", callback_data="russian_consulate_contact")],
@@ -154,11 +183,49 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📑 الدليل بعد وصوله إلى روسيا – اختر موضوعًا:", reply_markup=keyboard)
 
     # ردود أزرار فرعية - يمكن تعديلها لاحقًا
-    elif query.data == "acceptance_guide":
-        await query.edit_message_text("📌 هنا شرح دليل القبول في روسيا ...", reply_markup=back_button("before_arrival"))
+    elif query.data == "Visa_guide":
+        text = "📌 الوثائق المطلوبة للتسجيل:\n\nيمكنك مشاهدة شرح كامل بالفيديو عبر الرابط التالي:"
+        await query.edit_message_text(text, reply_markup=back_button("before_arrival"))
 
-    elif query.data == "required_documents":
-        await query.edit_message_text("📄 الوثائق المطلوبة هي ...", reply_markup=back_button("before_arrival"))
+        # إرسال رسالة جديدة مع رابط الفيديو ليظهر معاينة يوتيوب
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="🔗 https://youtu.be/tOCG-K8QQv8"
+        )
+
+        # رسالة أزرار تواصل ورجوع
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📩 تواصل معنا", url="https://t.me/Yousfi_Abdelkader")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="before_arrival")]
+        ])
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="هل لديك أي سؤال؟ تواصل معنا عبر الزر أدناه.",
+            reply_markup=keyboard
+        )
+
+
+
+    elif query.data == "Visa_Forum":
+        text = "📢 منتدى التأشيرات:\n\nيمكنك مشاهدة شرح مفصل عبر الفيديو التالي:"
+        await query.edit_message_text(text, reply_markup=back_button("before_arrival"))
+        # إرسال رابط الفيديو ليظهر معاينة يوتيوب
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="🔗 https://youtu.be/KYqtG5DihC8"
+
+        )
+        # رسالة أزرار تواصل ورجوع
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📩 تواصل معنا", url="https://t.me/Yousfi_Abdelkader")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="before_arrival")]
+        ])
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="هل لديك أي سؤال؟ تواصل معنا عبر الزر أدناه.",
+            reply_markup=keyboard
+        )
+
 
     elif query.data == "visa_application":
         await query.edit_message_text("🛂 هنا شرح طلب التأشيرة ...", reply_markup=back_button("before_arrival"))
@@ -263,3 +330,4 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     print("Bot is running...")
     app.run_polling()
+
