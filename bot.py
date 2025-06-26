@@ -31,7 +31,7 @@ def main_menu_keyboard():
         [InlineKeyboardButton("📢 قناة التلغرام", url="https://t.me/Kaader_Dz")],
         [InlineKeyboardButton("📺 YouTube", url="https://www.youtube.com/@Yousfi-Abdelkader")],
         [InlineKeyboardButton("💬 شات المجموعة", url="https://t.me/Kadet_Dz_Chat")],
-        [InlineKeyboardButton("₽ بيع وشراء الروبل", callback_data="rub_exchange")],
+        #[InlineKeyboardButton("₽ بيع وشراء الروبل", callback_data="rub_exchange")],
         [InlineKeyboardButton("📑 خدمات التسجيل والترجمة, الاستشارة", callback_data="services_menu")],
         [InlineKeyboardButton("📘 دليلك الشامل", callback_data="guide_menu")],
     ])
@@ -62,17 +62,21 @@ TRANSLATION_MESSAGE = (
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = context.application.bot_data.setdefault("users", set())
-    users.add(update.effective_user.id)
-    greeting = (
-        "البوت في مرحلة تحديث ⚙️\n\n"
-        "يرجى حذف المحادثة وإعادة تشغيل البوت بالضغط على الزر 👇"
-    )
+    user_id = update.effective_user.id
+    if user_id not in users:
+        users.add(user_id)
+        save_users(users)  # Save immediately after adding
+
+    greeting = "مرحبًا! 👋\n\nمرحبًا بك في بوت الدعم للطلاب في روسيا 🇷🇺.\n\nاستخدم الأزرار أدناه لاكتشاف الخدمات والمعلومات المفيدة.\n\nإذا كنت بحاجة لأي مساعدة، لا تتردد في التواصل معنا."
+
+    # Respond to either /start message or callback "Start"
     if update.message:
         sent_msg = await update.message.reply_text(greeting, reply_markup=main_menu_keyboard())
         context.user_data["last_message_id"] = sent_msg.message_id
     elif update.callback_query:
         await update.callback_query.edit_message_text(greeting, reply_markup=main_menu_keyboard())
         context.user_data["last_message_id"] = update.callback_query.message.message_id
+
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -160,8 +164,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # دليلك الشامل قائمة رئيسية
     elif query.data == "guide_menu":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📄 الدليل قبل مجيئه إلى روسيا", callback_data="before_arrival")],
-            [InlineKeyboardButton("📑 الدليل بعد وصوله إلى روسيا", callback_data="after_arrival")],
+            [InlineKeyboardButton("📄 االدليل قبل الوصول إلى روسيا", callback_data="before_arrival")],
+            [InlineKeyboardButton("📑 الدليل بعد الوصول إلى روسيا", callback_data="after_arrival")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="Start")],
         ])
         await query.edit_message_text("📘 دليلك الشامل – اختر القسم:", reply_markup=keyboard)
@@ -440,16 +444,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("هذا الزر غير معرف", show_alert=True)
 
 
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    users = context.application.bot_data.setdefault("users", set())
-    user_id = update.effective_user.id
-    if user_id not in users:
-        users.add(user_id)
-        save_users(users)  # Save immediately after adding
-
-    greeting = "Welcome! ..."
-    await update.message.reply_text(greeting, reply_markup=main_menu_keyboard())
 
 
 if __name__ == '__main__':
