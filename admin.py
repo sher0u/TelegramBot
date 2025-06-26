@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 
-ADMINS = [872846255]  # Your Telegram user ID here
+ADMINS = [872846255,6698671368]  # Your Telegram user ID here
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
