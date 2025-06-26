@@ -9,7 +9,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-BOT_TOKEN ="7371746803:AAFy0Rg72aH7iGqfy5mlFIySkI6-ENdKT1g"
+BOT_TOKEN ="##################################################"
 
 async def delete_bot_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
