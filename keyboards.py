@@ -174,6 +174,21 @@ def contact_kb() -> InlineKeyboardMarkup:
 # INQUIRY FORM
 # ══════════════════════════════════════════════════════════════════════════════
 
+def inq_target_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👨‍💼 الإدارة",  callback_data="inq_target_admin")],
+        [InlineKeyboardButton("👥 الجالية",    callback_data="inq_target_community")],
+        [InlineKeyboardButton("❌ إلغاء",       callback_data="inq_cancel")],
+    ])
+
+
+def admin_approve_inq_kb(inq_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ موافقة", callback_data=f"inq_app_{inq_id}"),
+        InlineKeyboardButton("❌ رفض",    callback_data=f"inq_rej_{inq_id}"),
+    ]])
+
+
 def inq_cancel_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء النموذج", callback_data="inq_cancel")]])
 

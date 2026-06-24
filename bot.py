@@ -21,6 +21,7 @@ from telegram.ext import (
 
 import content as C
 import keyboards as KB
+import inquiry_storage as INQS
 import marketplace_storage as MKT
 import travel_storage as TRV
 from admin import get_admin_handlers
@@ -40,7 +41,7 @@ GROUP_IDS    = [int(x.strip()) for x in os.getenv("GROUP_IDS", "").split(",") if
 
 # ── Conversation states ───────────────────────────────────────────────────────
 
-_INQ_PHONE, _INQ_SERVICE, _INQ_NOTES = range(3)
+_INQ_TARGET, _INQ_PHONE, _INQ_SERVICE, _INQ_NOTES = range(4)
 
 # Marketplace post: choose category → title → price → city → desc → photo
 _MKT_CAT, _MKT_TITLE, _MKT_PRICE, _MKT_CITY, _MKT_DESC, _MKT_PHOTO = range(10, 16)
@@ -1160,6 +1161,46 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.answer("الرحلة غير موجودة", show_alert=True)
 
+    # ── Admin: community inquiry approval ────────────────────────────────────
+    elif d.startswith("inq_app_"):
+        inq_id = d[len("inq_app_"):]
+        item   = INQS.get_by_id(inq_id)
+        if item:
+            INQS.approve_inquiry(inq_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=item["user_id"], text=C.INQ_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.back_to_main_kb()
+                )
+            except Exception:
+                pass
+            group_msg = (
+                "👥 *استفسار من الجالية*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📛 *الاسم:* {_esc(item['name'])}\n"
+                f"🎯 *الخدمة:* {_esc(item['service'])}\n"
+                f"💬 *التفاصيل:* {_esc(item['notes'])}"
+            )
+            await _post_to_groups(context, group_msg, contact_user_id=item["user_id"])
+        else:
+            await query.answer("الاستفسار غير موجود أو تم حذفه", show_alert=True)
+
+    elif d.startswith("inq_rej_"):
+        inq_id = d[len("inq_rej_"):]
+        item   = INQS.get_by_id(inq_id)
+        if item:
+            INQS.delete_inquiry(inq_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=item["user_id"], text=C.INQ_REJECTED_NOTIFY, parse_mode=MD2
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الاستفسار غير موجود", show_alert=True)
+
     # ── Unknown ───────────────────────────────────────────────────────────────
     else:
         logger.warning("Unhandled callback: %s", d)
@@ -1173,6 +1214,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def inq_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    await _conv_edit(query, context, C.INQ_TARGET, KB.inq_target_kb())
+    return _INQ_TARGET
+
+
+async def inq_target_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data["inq_target"] = "community" if query.data == "inq_target_community" else "admin"
     await _conv_edit(query, context, C.INQ_START, KB.inq_cancel_kb())
     return _INQ_PHONE
 
@@ -1208,8 +1257,10 @@ async def inq_notes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if notes.strip() == ".":
         notes = "—"
     context.user_data["inq_notes"] = notes
+    is_community = context.user_data.get("inq_target") == "community"
     await _forward_inquiry(update, context)
-    await _conv_reply(update, context, C.INQ_DONE, KB.back_to_main_kb())
+    done_text = C.INQ_DONE_COMMUNITY if is_community else C.INQ_DONE
+    await _conv_reply(update, context, done_text, KB.back_to_main_kb())
     _inq_cleanup(context)
     return ConversationHandler.END
 
@@ -1232,28 +1283,51 @@ async def _forward_inquiry(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user = update.effective_user
     ud   = context.user_data
     username_part = f"@{_esc(user.username)}" if user.username else "—"
-    msg = (
-        "📥 *استفسار جديد*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 *المرسل:* {_esc(user.first_name)} \\({username_part}\\)\n"
-        f"🆔 *ID:* `{user.id}`\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📛 *الاسم:* {_esc(ud.get('inq_name'))}\n"
-        f"📱 *الهاتف:* {_esc(ud.get('inq_phone'))}\n"
-        f"🎯 *الخدمة:* {_esc(ud.get('inq_service'))}\n"
-        f"💬 *ملاحظات:* {_esc(ud.get('inq_notes'))}"
-    )
+
+    if ud.get("inq_target") == "community":
+        item = INQS.add_inquiry(
+            user_id=user.id, username=user.username, first_name=user.first_name,
+            name=ud.get("inq_name", ""), phone=ud.get("inq_phone", ""),
+            service=ud.get("inq_service", ""), notes=ud.get("inq_notes", ""),
+        )
+        msg = (
+            "👥 *استفسار جديد — موجّه للجالية*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 *المرسل:* {_esc(user.first_name)} \\({username_part}\\)\n"
+            f"🆔 *ID:* `{user.id}`\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📛 *الاسم:* {_esc(item['name'])}\n"
+            f"📱 *الهاتف:* {_esc(item['phone'])}\n"
+            f"🎯 *الخدمة:* {_esc(item['service'])}\n"
+            f"💬 *ملاحظات:* {_esc(item['notes'])}\n"
+            f"🆔 *inq\\_id:* `{item['id']}`"
+        )
+        kb = KB.admin_approve_inq_kb(item["id"])
+    else:
+        msg = (
+            "📥 *استفسار جديد — موجّه للإدارة*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 *المرسل:* {_esc(user.first_name)} \\({username_part}\\)\n"
+            f"🆔 *ID:* `{user.id}`\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📛 *الاسم:* {_esc(ud.get('inq_name'))}\n"
+            f"📱 *الهاتف:* {_esc(ud.get('inq_phone'))}\n"
+            f"🎯 *الخدمة:* {_esc(ud.get('inq_service'))}\n"
+            f"💬 *ملاحظات:* {_esc(ud.get('inq_notes'))}"
+        )
+        kb = None
+
     from admin import ADMINS
     fwd = INQUIRY_CHAT or (str(ADMINS[0]) if ADMINS else None)
     if fwd:
         try:
-            await context.bot.send_message(chat_id=int(fwd), text=msg, parse_mode=MD2)
+            await context.bot.send_message(chat_id=int(fwd), text=msg, parse_mode=MD2, reply_markup=kb)
         except Exception as e:
             logger.error("Failed to forward inquiry: %s", e)
 
 
 def _inq_cleanup(context) -> None:
-    for k in ("inq_name", "inq_phone", "inq_service", "inq_notes"):
+    for k in ("inq_target", "inq_name", "inq_phone", "inq_service", "inq_notes"):
         context.user_data.pop(k, None)
 
 
@@ -1578,6 +1652,7 @@ def main() -> None:
         inquiry_conv = ConversationHandler(
             entry_points=[CallbackQueryHandler(inq_start, pattern="^inquiry_start$")],
             states={
+                _INQ_TARGET:  [_inq_cxl, CallbackQueryHandler(inq_target_chosen, pattern="^inq_target_")],
                 _INQ_PHONE:   [_inq_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, inq_phone)],
                 _INQ_SERVICE: [_inq_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, inq_service_text)],
                 _INQ_NOTES:   [_inq_cxl, CallbackQueryHandler(inq_service_btn, pattern="^inq_svc_"),
