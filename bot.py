@@ -132,7 +132,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="🔘 يمكنك دائمًا استخدام الزر أدناه للعودة للقائمة الرئيسية",
+                text=C.PERSISTENT_KB_INFO, parse_mode=MD2,
                 reply_markup=KB.persistent_menu_kb(),
             )
         except Exception:
@@ -1684,7 +1684,7 @@ def main() -> None:
                                MessageHandler(filters.TEXT & ~filters.COMMAND, inq_notes)],
             },
             fallbacks=[CommandHandler("cancel", inq_cancel),
-                       MessageHandler(filters.Regex("^🏠 القائمة الرئيسية$"), restart_btn)],
+                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
             per_user=True, per_chat=True,
         )
 
@@ -1706,7 +1706,7 @@ def main() -> None:
                              MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_photo)],
             },
             fallbacks=[CommandHandler("cancel", mkt_cancel),
-                       MessageHandler(filters.Regex("^🏠 القائمة الرئيسية$"), restart_btn)],
+                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
             per_user=True, per_chat=True,
         )
 
@@ -1726,7 +1726,7 @@ def main() -> None:
                 _RM_DESC:       [_rm_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, rm_get_desc)],
             },
             fallbacks=[CommandHandler("cancel", rm_cancel),
-                       MessageHandler(filters.Regex("^🏠 القائمة الرئيسية$"), restart_btn)],
+                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
             per_user=True, per_chat=True,
         )
 
@@ -1746,7 +1746,7 @@ def main() -> None:
                 _TRV_NOTE:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_note)],
             },
             fallbacks=[CommandHandler("cancel", trv_cancel),
-                       MessageHandler(filters.Regex("^🏠 القائمة الرئيسية$"), restart_btn)],
+                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
             per_user=True, per_chat=True,
         )
 
@@ -1765,7 +1765,7 @@ def main() -> None:
     app.add_handler(CommandHandler("contact", contact_cmd))
     app.add_handler(CommandHandler("website", website_cmd))
 
-    app.add_handler(MessageHandler(filters.Regex("^🏠 القائمة الرئيسية$"), restart_btn))
+    app.add_handler(MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 

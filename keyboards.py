@@ -36,7 +36,7 @@ def back_to_main_kb() -> InlineKeyboardMarkup:
 def persistent_menu_kb() -> ReplyKeyboardMarkup:
     """Always-visible bottom keyboard so the user never needs to type /start."""
     return ReplyKeyboardMarkup(
-        [["🏠 القائمة الرئيسية"]],
+        [["العودة الى القائمة الرئيسية"]],
         resize_keyboard=True,
         is_persistent=True,
     )
