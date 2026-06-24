@@ -127,28 +127,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if add_user(users, user.id, user.first_name, user.username):
         save_users(users)
     await _edit_or_reply(update, C.WELCOME, KB.main_menu_kb())
-    from admin import ADMINS
-    if user.id in ADMINS and not context.user_data.get("_persistent_kb_sent"):
-        context.user_data["_persistent_kb_sent"] = True
-        try:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="✅ تم تفعيل زر العودة السريع",
-                reply_markup=KB.persistent_menu_kb(),
-            )
-        except Exception:
-            pass
-
-
-async def restart_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Persistent bottom-keyboard button — always available, no /start needed.
-    Also used as a universal fallback to escape any active conversation."""
-    _inq_cleanup(context)
-    _mkt_cleanup(context)
-    _rm_cleanup(context)
-    _trv_cleanup(context)
-    await start(update, context)
-    return ConversationHandler.END
 
 
 # ── Simple commands ───────────────────────────────────────────────────────────
@@ -1684,8 +1662,7 @@ def main() -> None:
                 _INQ_NOTES:   [_inq_cxl, CallbackQueryHandler(inq_service_btn, pattern="^inq_svc_"),
                                MessageHandler(filters.TEXT & ~filters.COMMAND, inq_notes)],
             },
-            fallbacks=[CommandHandler("cancel", inq_cancel),
-                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
+            fallbacks=[CommandHandler("cancel", inq_cancel)],
             per_user=True, per_chat=True,
         )
 
@@ -1706,8 +1683,7 @@ def main() -> None:
                              MessageHandler(filters.PHOTO, mkt_get_photo),
                              MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_photo)],
             },
-            fallbacks=[CommandHandler("cancel", mkt_cancel),
-                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
+            fallbacks=[CommandHandler("cancel", mkt_cancel)],
             per_user=True, per_chat=True,
         )
 
@@ -1726,8 +1702,7 @@ def main() -> None:
                 _RM_METRO:      [_rm_cxl, CallbackQueryHandler(rm_metro_chosen,     pattern="^rm_metro_")],
                 _RM_DESC:       [_rm_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, rm_get_desc)],
             },
-            fallbacks=[CommandHandler("cancel", rm_cancel),
-                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
+            fallbacks=[CommandHandler("cancel", rm_cancel)],
             per_user=True, per_chat=True,
         )
 
@@ -1746,8 +1721,7 @@ def main() -> None:
                 _TRV_CONTACT: [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_contact)],
                 _TRV_NOTE:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_note)],
             },
-            fallbacks=[CommandHandler("cancel", trv_cancel),
-                       MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn)],
+            fallbacks=[CommandHandler("cancel", trv_cancel)],
             per_user=True, per_chat=True,
         )
 
@@ -1766,7 +1740,6 @@ def main() -> None:
     app.add_handler(CommandHandler("contact", contact_cmd))
     app.add_handler(CommandHandler("website", website_cmd))
 
-    app.add_handler(MessageHandler(filters.Regex("^العودة الى القائمة الرئيسية$"), restart_btn))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 
