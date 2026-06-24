@@ -21,12 +21,13 @@ from urllib.parse import parse_qsl
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import content as C
+import home_banner_storage as BANNER
 import inquiry_storage as INQS
 import marketplace_storage as MKT
 import travel_storage as TRV
@@ -93,6 +94,19 @@ async def _tg_send_message(chat_id, text, reply_markup=None, parse_mode="Markdow
             payload["reply_markup"] = reply_markup
         try:
             await client.post(f"{API_BASE}/sendMessage", json=payload)
+        except Exception:
+            pass
+
+
+async def _tg_send_photo(chat_id, photo_id, caption, reply_markup=None, parse_mode="MarkdownV2"):
+    async with httpx.AsyncClient(timeout=15) as client:
+        payload = {"chat_id": chat_id, "photo": photo_id, "caption": caption}
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        try:
+            await client.post(f"{API_BASE}/sendPhoto", json=payload)
         except Exception:
             pass
 
@@ -277,6 +291,37 @@ async def get_photo(file_id: str):
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.post("/api/upload_photo")
+async def upload_photo(file: UploadFile = File(...), x_telegram_init_data: str = Header(default="")):
+    """Browsers can't produce a Telegram file_id directly — relay the image to the
+    admin chat (silently) to obtain one, then hand that file_id back to the client."""
+    _current_user(x_telegram_init_data)
+    fwd = _fwd_chat()
+    if not fwd:
+        raise HTTPException(500, "no relay chat configured")
+    content_bytes = await file.read()
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{API_BASE}/sendPhoto",
+            data={"chat_id": fwd, "caption": "📷 صورة مرفوعة من التطبيق المصغر"},
+            files={"photo": (file.filename or "photo.jpg", content_bytes, file.content_type or "image/jpeg")},
+        )
+    data = resp.json()
+    if not data.get("ok"):
+        raise HTTPException(502, "upload failed")
+    largest = data["result"]["photo"][-1]
+    return {"file_id": largest["file_id"]}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Home banner (temporary broadcast override on the mini app home screen)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/home_banner")
+def get_home_banner():
+    return {"text": BANNER.get_active_banner()}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Submission forms
 # ══════════════════════════════════════════════════════════════════════════════
@@ -287,6 +332,7 @@ class ItemSubmit(BaseModel):
     price: str
     city: str
     description: str
+    photo_id: str
 
 
 class ListingSubmit(BaseModel):
@@ -297,6 +343,7 @@ class ListingSubmit(BaseModel):
     price: str
     metro_distance: str
     description: str
+    photos: list[str] = []
 
 
 class TravelSubmit(BaseModel):
@@ -319,10 +366,12 @@ class InquirySubmit(BaseModel):
 @app.post("/api/submit/item")
 async def submit_item(body: ItemSubmit, x_telegram_init_data: str = Header(default="")):
     user = _current_user(x_telegram_init_data)
+    if not body.photo_id:
+        raise HTTPException(400, "photo required")
     item = MKT.add_item(
         user_id=user["id"], username=user.get("username"), first_name=user.get("first_name"),
         category=body.category, title=body.title, price=body.price,
-        city=body.city, description=body.description,
+        city=body.city, description=body.description, photo_id=body.photo_id,
     )
     cat_label = MKT.CATEGORIES.get(item["category"], item["category"])
     seller = f"@{_esc(item['username'])}" if item.get("username") else _esc(item.get("first_name"))
@@ -341,18 +390,19 @@ async def submit_item(body: ItemSubmit, x_telegram_init_data: str = Header(defau
     )
     fwd = _fwd_chat()
     if fwd:
-        await _tg_send_message(int(fwd), msg, _approve_kb("mkt", item["id"]))
+        await _tg_send_photo(int(fwd), item["photo_id"], msg, _approve_kb("mkt", item["id"]))
     return {"ok": True, "id": item["id"]}
 
 
 @app.post("/api/submit/listing")
 async def submit_listing(body: ListingSubmit, x_telegram_init_data: str = Header(default="")):
     user = _current_user(x_telegram_init_data)
+    photos = body.photos[:2]
     lst = MKT.add_listing(
         user_id=user["id"], username=user.get("username"), first_name=user.get("first_name"),
         listing_type=body.type, room_type=body.room_type, city=body.city,
         city_key=body.city_key, price=body.price, metro_distance=body.metro_distance,
-        description=body.description,
+        description=body.description, photos=photos,
     )
     rtype = MKT.ROOMMATE_TYPES.get(lst["type"], lst["type"])
     rroom = MKT.ROOM_TYPES.get(lst.get("room_type", ""), "")
@@ -374,7 +424,10 @@ async def submit_listing(body: ListingSubmit, x_telegram_init_data: str = Header
     )
     fwd = _fwd_chat()
     if fwd:
-        await _tg_send_message(int(fwd), msg, _approve_kb("rm", lst["id"]))
+        if photos:
+            await _tg_send_photo(int(fwd), photos[0], msg, _approve_kb("rm", lst["id"]))
+        else:
+            await _tg_send_message(int(fwd), msg, _approve_kb("rm", lst["id"]))
     return {"ok": True, "id": lst["id"]}
 
 
@@ -490,13 +543,17 @@ def admin_pending(x_telegram_init_data: str = Header(default="")):
     }
 
 
-async def _notify_groups(text: str, contact_user_id: int | None = None):
+async def _notify_groups(text: str, contact_user_id: int | None = None, photo_id: str | None = None):
     rows = []
     if contact_user_id:
         rows.append([{"text": "💬 تواصل مع المعلن", "url": f"tg://user?id={contact_user_id}"}])
     rows.append([{"text": "🤖 الانتقال إلى البوت", "url": f"https://t.me/{BOT_USERNAME}"}])
+    kb = {"inline_keyboard": rows}
     for gid in GROUP_IDS:
-        await _tg_send_message(gid, text, {"inline_keyboard": rows})
+        if photo_id:
+            await _tg_send_photo(gid, photo_id, text, kb)
+        else:
+            await _tg_send_message(gid, text, kb)
 
 
 class ApproveBody(BaseModel):
@@ -516,7 +573,7 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
         cat = MKT.CATEGORIES.get(item["category"], item["category"])
         text = (f"🛒 *Avito Algeria* — {_esc(cat)}\n📝 *{_esc(item['title'])}*\n"
                 f"💰 {_esc(item['price'])}\n📍 {_esc(item['city'])}\n💬 {_esc(item['description'])}")
-        await _notify_groups(text, item["user_id"])
+        await _notify_groups(text, item["user_id"], photo_id=item.get("photo_id"))
     elif body.kind == "listing":
         lst = MKT.get_listing_by_id(body.id)
         if not lst:
@@ -525,7 +582,8 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
         await _tg_send_message(lst["user_id"], C.RM_APPROVED_NOTIFY)
         text = (f"🏠 *إيجاد شريك سكن*\n📍 {_esc(lst['city'])}\n💰 {_esc(lst['price'])}\n"
                 f"💬 {_esc(lst['description'])}")
-        await _notify_groups(text, lst["user_id"])
+        photos = lst.get("photos") or []
+        await _notify_groups(text, lst["user_id"], photo_id=(photos[0] if photos else None))
     elif body.kind == "travel":
         post = TRV.get_post_by_id(body.id)
         if not post:
@@ -580,22 +638,31 @@ async def admin_reject(body: ApproveBody, x_telegram_init_data: str = Header(def
 
 class BroadcastBody(BaseModel):
     message: str
+    send_users: bool = True
     send_groups: bool = False
+    publish_app: bool = False
 
 
 @app.post("/api/admin/broadcast")
 async def admin_broadcast(body: BroadcastBody, x_telegram_init_data: str = Header(default="")):
     _current_admin(x_telegram_init_data)
-    users = US.load_users()
-    ids = US.get_user_ids(users)
     sent = 0
-    for uid in ids:
-        await _tg_send_message(uid, body.message, parse_mode=None)
-        sent += 1
+    if body.send_users:
+        users = US.load_users()
+        ids = US.get_user_ids(users)
+        for uid in ids:
+            await _tg_send_message(uid, body.message, parse_mode=None)
+            sent += 1
     if body.send_groups:
         for gid in GROUP_IDS:
             await _tg_send_message(gid, body.message, parse_mode=None)
-    return {"ok": True, "sent": sent, "groups": len(GROUP_IDS) if body.send_groups else 0}
+    if body.publish_app:
+        BANNER.set_banner(body.message, hours=24)
+    return {
+        "ok": True, "sent": sent,
+        "groups": len(GROUP_IDS) if body.send_groups else 0,
+        "published_app": body.publish_app,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════

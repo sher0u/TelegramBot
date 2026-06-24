@@ -230,11 +230,14 @@ def broadcast_type_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def broadcast_groups_kb() -> InlineKeyboardMarkup:
+def broadcast_destinations_kb(send_users: bool, send_groups: bool, publish_app: bool) -> InlineKeyboardMarkup:
+    def _mark(v): return "✅" if v else "⬜"
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ نعم، أرسل للمجموعات أيضًا", callback_data="bc_grp_yes")],
-        [InlineKeyboardButton("➡️ لا، للمستخدمين فقط",        callback_data="bc_grp_no")],
-        [InlineKeyboardButton("❌ إلغاء",                      callback_data="bc_cancel")],
+        [InlineKeyboardButton(f"{_mark(send_users)} المستخدمون",      callback_data="bc_dst_users")],
+        [InlineKeyboardButton(f"{_mark(send_groups)} المجموعات",      callback_data="bc_dst_groups")],
+        [InlineKeyboardButton(f"{_mark(publish_app)} التطبيق المصغر", callback_data="bc_dst_app")],
+        [InlineKeyboardButton("➡️ متابعة",  callback_data="bc_dst_continue"),
+         InlineKeyboardButton("❌ إلغاء",    callback_data="bc_cancel")],
     ])
 
 
@@ -397,13 +400,6 @@ def avito_post_cat_kb() -> InlineKeyboardMarkup:
 
 def avito_cancel_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="avito_cancel_post")]])
-
-
-def avito_skip_photo_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏭️ بدون صورة — تخطي", callback_data="avito_skip_photo")],
-        [InlineKeyboardButton("❌ إلغاء",              callback_data="avito_cancel_post")],
-    ])
 
 
 # ── My items ──────────────────────────────────────────────────────────────────

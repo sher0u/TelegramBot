@@ -38,8 +38,11 @@ function render() {
   const top = stack[stack.length - 1];
   elBack.classList.toggle("hidden", stack.length <= 1);
   elTitle.textContent = top.title;
+  elApp.classList.remove("view-anim");
   elApp.innerHTML = "";
   VIEWS[top.view](top.params);
+  void elApp.offsetWidth;
+  elApp.classList.add("view-anim");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -137,21 +140,28 @@ async function act(action, kind, id, card) {
 function viewBroadcast() {
   elApp.innerHTML = `
     <div class="form-group"><label>نص الرسالة</label><textarea id="msg" style="min-height:120px"></textarea></div>
-    <div class="option-row">
-      <div class="option-pill" id="grpToggle">📣 إرسال للمجموعات أيضًا</div>
+    <div class="form-group"><label>أين تريد النشر؟</label>
+      <div class="option-row">
+        <div class="option-pill selected" data-dst="users">📨 المستخدمون</div>
+        <div class="option-pill" data-dst="groups">📣 المجموعات</div>
+        <div class="option-pill" data-dst="app">📲 التطبيق المصغر</div>
+      </div>
     </div>
     <button class="btn" id="sendBtn">إرسال البث</button>`;
-  let sendGroups = false;
-  document.getElementById("grpToggle").onclick = (e) => {
-    sendGroups = !sendGroups;
-    e.target.classList.toggle("selected", sendGroups);
-  };
+  const dest = { users: true, groups: false, app: false };
+  elApp.querySelectorAll("[data-dst]").forEach(p => p.onclick = () => {
+    dest[p.dataset.dst] = !dest[p.dataset.dst];
+    p.classList.toggle("selected", dest[p.dataset.dst]);
+  });
   document.getElementById("sendBtn").onclick = async () => {
     const message = document.getElementById("msg").value.trim();
     if (!message) { toast("⚠️ اكتب رسالة أولًا"); return; }
+    if (!dest.users && !dest.groups && !dest.app) { toast("⚠️ اختر وجهة واحدة على الأقل"); return; }
     try {
-      const res = await api("/api/admin/broadcast", { method: "POST", body: JSON.stringify({ message, send_groups: sendGroups }) });
-      toast(`✅ تم الإرسال إلى ${res.sent} مستخدم`);
+      const res = await api("/api/admin/broadcast", { method: "POST", body: JSON.stringify({
+        message, send_users: dest.users, send_groups: dest.groups, publish_app: dest.app,
+      })});
+      toast(`✅ تم الإرسال${dest.users ? ` إلى ${res.sent} مستخدم` : ""}`);
       back();
     } catch (e) { toast("⚠️ " + e.message); }
   };

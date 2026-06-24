@@ -59,13 +59,18 @@ html, body {
   padding-bottom: 100px;
   max-width: 560px;
   margin: 0 auto;
-  animation: viewIn 0.18s ease;
+}
+
+.app.view-anim {
+  animation: viewIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes viewIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+.top-title { transition: opacity 0.15s ease; }
 
 .hidden { display: none !important; }
 
@@ -494,6 +499,26 @@ html, body {
 }
 
 .option-pill.selected { border-color: var(--accent); font-weight: 700; color: var(--accent); background: var(--accent-soft); }
+
+.photo-slots { display: flex; gap: 8px; }
+
+.photo-slot {
+  width: 84px; height: 84px;
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  border: 2px dashed rgba(0,0,0,0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  color: var(--hint);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+.photo-slot.uploading { opacity: 0.5; }
+.photo-slot.filled { border-style: solid; border-color: var(--success); }
 
 /* ── Toast ─────────────────────────────────────────────────────────────── */
 

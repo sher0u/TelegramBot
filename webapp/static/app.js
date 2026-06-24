@@ -22,6 +22,44 @@ function toast(msg) {
   setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
+async function uploadPhoto(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch("/api/upload_photo", { method: "POST", headers: { "X-Telegram-Init-Data": INIT_DATA }, body: fd });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return (await r.json()).file_id;
+}
+
+function photoSlot(onDone) {
+  const slot = document.createElement("div");
+  slot.className = "photo-slot";
+  slot.innerHTML = "📷";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.style.display = "none";
+  slot.appendChild(input);
+  slot.onclick = () => { if (!slot.classList.contains("filled")) input.click(); };
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    slot.classList.add("uploading");
+    slot.innerHTML = "⏳";
+    try {
+      const fileId = await uploadPhoto(file);
+      slot.classList.remove("uploading");
+      slot.classList.add("filled");
+      slot.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+      onDone(fileId);
+    } catch (e) {
+      slot.classList.remove("uploading");
+      slot.innerHTML = "📷";
+      toast("⚠️ فشل رفع الصورة: " + e.message);
+    }
+  };
+  return slot;
+}
+
 function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
@@ -61,9 +99,12 @@ function render() {
   const top = stack[stack.length - 1];
   elBack.classList.toggle("hidden", stack.length <= 1);
   elTitle.textContent = top.title;
+  elApp.classList.remove("view-anim");
   elApp.innerHTML = "";
   VIEWS[top.view](top.params);
   window.scrollTo(0, 0);
+  void elApp.offsetWidth;
+  elApp.classList.add("view-anim");
 }
 
 elNav.querySelectorAll(".nav-item").forEach(btn => {
@@ -91,11 +132,18 @@ async function loadMeta() {
 // HOME
 // ══════════════════════════════════════════════════════════════════════════
 
-function viewHome() {
+async function viewHome() {
+  let heroTitle = "مرحبًا بك في KADER DZ 🇷🇺";
+  let heroSubtitle = "مساعدك الشامل للدراسة والحياة في روسيا — تصفح، انشر، وتواصل مع المجتمع كله من هنا.";
+  try {
+    const { text } = await api("/api/home_banner");
+    if (text) { heroTitle = "📢 إعلان من الإدارة"; heroSubtitle = text; }
+  } catch (e) { /* ignore, fall back to default welcome */ }
+
   elApp.innerHTML = `
     <div class="hero">
-      <div class="title">مرحبًا بك في KADER DZ 🇷🇺</div>
-      <div class="subtitle">مساعدك الشامل للدراسة والحياة في روسيا — تصفح، انشر، وتواصل مع المجتمع كله من هنا.</div>
+      <div class="title">${esc(heroTitle)}</div>
+      <div class="subtitle">${esc(heroSubtitle)}</div>
     </div>
     <div class="home-grid">
       <button class="home-tile" data-go="content" data-id="guide"><span class="icon-circle">📘</span><span class="label">دليلك الشامل</span></button>
@@ -275,6 +323,7 @@ async function openAvitoDetail(id) {
 
 function viewAvitoPost() {
   elApp.innerHTML = `
+    <div class="form-group"><label>صورة المنتج (مطلوبة)</label><div class="photo-slots" id="photoSlots"></div></div>
     <div class="form-group">
       <label>الفئة</label>
       <div class="option-row" id="catPills"></div>
@@ -284,7 +333,8 @@ function viewAvitoPost() {
     <div class="form-group"><label>المدينة</label><input id="f_city" placeholder="مثال: موسكو"></div>
     <div class="form-group"><label>الوصف</label><textarea id="f_desc" placeholder="تفاصيل المنتج..."></textarea></div>
     <button class="btn" id="submitBtn">نشر الإعلان</button>`;
-  let selectedCat = null;
+  let selectedCat = null, photoId = null;
+  document.getElementById("photoSlots").appendChild(photoSlot(fid => { photoId = fid; }));
   const pills = document.getElementById("catPills");
   for (const [key, label] of Object.entries(META.categories)) {
     const pill = document.createElement("div");
@@ -302,9 +352,10 @@ function viewAvitoPost() {
     const price = document.getElementById("f_price").value.trim();
     const city = document.getElementById("f_city").value.trim();
     const desc = document.getElementById("f_desc").value.trim();
+    if (!photoId) { toast("⚠️ يجب إضافة صورة للمنتج"); return; }
     if (!selectedCat || !title || !price || !city || !desc) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
     try {
-      await api("/api/submit/item", { method: "POST", body: JSON.stringify({ category: selectedCat, title, price, city, description: desc }) });
+      await api("/api/submit/item", { method: "POST", body: JSON.stringify({ category: selectedCat, title, price, city, description: desc, photo_id: photoId }) });
       toast("✅ تم استلام إعلانك، بانتظار المراجعة");
       back();
     } catch (e) { toast("⚠️ " + e.message); }
@@ -364,9 +415,10 @@ async function loadRmGrid() {
     card.className = "card";
     const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
     const roomBadge = item.room_type === "studio" ? "🏠" : "🛏️";
+    const photo = (item.photos || [])[0];
     card.innerHTML = `
       <div class="img-wrap">
-        <span class="placeholder-icon">🏠</span>
+        ${photo ? `<img src="/api/photo/${photo}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>🏠</span>'">` : `<span class="placeholder-icon">🏠</span>`}
         <span class="cat-badge">${roomBadge}</span>
         <span class="price-badge">${esc(item.price)}</span>
       </div>
@@ -386,7 +438,9 @@ async function openRmDetail(id) {
     ? `<a class="btn" href="https://t.me/${item.username}">💬 تواصل عبر تيليجرام</a>`
     : `<div class="detail-row" style="color:var(--hint)">للتواصل، استخدم البوت مباشرة</div>`;
   const rtype = item.type === "need" ? "🔍 يبحث عن شريك سكن" : "🏠 عنده غرفة/وحدة";
+  const photosHtml = (item.photos || []).map(p => `<img src="/api/photo/${p}">`).join("");
   showDetail(`
+    ${photosHtml}
     <h2>${rtype}</h2>
     <div class="detail-row"><b>المدينة:</b> ${esc(item.city)}</div>
     <div class="detail-row"><b>السعر:</b> ${esc(item.price)}</div>
@@ -398,6 +452,7 @@ async function openRmDetail(id) {
 
 function viewRoommatePost() {
   elApp.innerHTML = `
+    <div class="form-group"><label>صور الوحدة (اختياري، حتى صورتين)</label><div class="photo-slots" id="photoSlots"></div></div>
     <div class="form-group"><label>نوع الإعلان</label>
       <div class="option-row">
         <div class="option-pill" data-v="need">🔍 أبحث عن شريك</div>
@@ -421,6 +476,10 @@ function viewRoommatePost() {
     <div class="form-group"><label>تفاصيل إضافية</label><textarea id="f_desc" placeholder="للطلاب، قريبة من الجامعة..."></textarea></div>
     <button class="btn" id="submitBtn">نشر الإعلان</button>`;
   let type = null, roomType = null, metro = null;
+  const photos = [null, null];
+  const slotsEl = document.getElementById("photoSlots");
+  slotsEl.appendChild(photoSlot(fid => { photos[0] = fid; }));
+  slotsEl.appendChild(photoSlot(fid => { photos[1] = fid; }));
   elApp.querySelectorAll("[data-v]").forEach(p => p.onclick = () => {
     type = p.dataset.v;
     elApp.querySelectorAll("[data-v]").forEach(x => x.classList.remove("selected"));
@@ -444,6 +503,7 @@ function viewRoommatePost() {
     try {
       await api("/api/submit/listing", { method: "POST", body: JSON.stringify({
         type, room_type: roomType, city_key: "other", city, price, metro_distance: metro, description: desc,
+        photos: photos.filter(Boolean),
       })});
       toast("✅ تم استلام إعلانك، بانتظار المراجعة");
       back();

@@ -1388,28 +1388,24 @@ async def mkt_get_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def mkt_get_desc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["mkt_desc"] = update.message.text.strip()
-    await _conv_reply(update, context, C.MKT_POST_PHOTO, KB.avito_skip_photo_kb())
+    await _conv_reply(update, context, C.MKT_POST_PHOTO, KB.avito_cancel_kb())
     return _MKT_PHOTO
 
 
 async def mkt_get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["mkt_photo"] = (
-        update.message.photo[-1].file_id if update.message.photo else None
-    )
-    # Delete the photo/text message, then edit conv message to success
+    if not update.message.photo:
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        await _conv_reply(update, context, C.MKT_POST_PHOTO_RETRY, KB.avito_cancel_kb())
+        return _MKT_PHOTO
+    context.user_data["mkt_photo"] = update.message.photo[-1].file_id
     try:
         await update.message.delete()
     except Exception:
         pass
     await _mkt_submit(update, context, via_callback=False)
-    return ConversationHandler.END
-
-
-async def mkt_skip_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    context.user_data["mkt_photo"] = None
-    await _mkt_submit(update, context, via_callback=True)
     return ConversationHandler.END
 
 
@@ -1693,7 +1689,6 @@ def main() -> None:
                 _MKT_CITY:  [_mkt_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_city)],
                 _MKT_DESC:  [_mkt_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_desc)],
                 _MKT_PHOTO: [_mkt_cxl,
-                             CallbackQueryHandler(mkt_skip_photo, pattern="^avito_skip_photo$"),
                              MessageHandler(filters.PHOTO, mkt_get_photo),
                              MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_photo)],
             },

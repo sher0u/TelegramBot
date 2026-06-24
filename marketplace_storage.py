@@ -154,7 +154,8 @@ def get_user_listings(user_id: int) -> list:
 
 def add_listing(user_id: int, username: str, first_name: str,
                 listing_type: str, room_type: str, city: str, city_key: str,
-                price: str, metro_distance: str, description: str) -> dict:
+                price: str, metro_distance: str, description: str,
+                photos: list = None) -> dict:
     listings = get_all_listings()
     listing = {
         "id":             _new_id(),
@@ -168,6 +169,7 @@ def add_listing(user_id: int, username: str, first_name: str,
         "price":          price,
         "metro_distance": metro_distance,
         "description":    description,
+        "photos":         photos or [],
         "status":         "pending",
         "reports":        0,
         "created_at":     datetime.now().isoformat(),
