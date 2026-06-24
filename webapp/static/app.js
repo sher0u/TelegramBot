@@ -654,7 +654,19 @@ function showDetail(html) {
   wrap.innerHTML = `<div class="detail-card"><button class="detail-close">✕</button><div>${html}</div></div>`;
   wrap.onclick = (e) => { if (e.target === wrap) wrap.remove(); };
   wrap.querySelector(".detail-close").onclick = () => wrap.remove();
+  wrap.querySelectorAll(".detail-card img").forEach(img => {
+    img.style.cursor = "zoom-in";
+    img.onclick = (e) => { e.stopPropagation(); openFullscreenImage(img.src); };
+  });
   document.body.appendChild(wrap);
+}
+
+function openFullscreenImage(src) {
+  const ov = document.createElement("div");
+  ov.className = "img-fullscreen";
+  ov.innerHTML = `<button class="img-fullscreen-close">✕</button><img src="${src}">`;
+  ov.onclick = () => ov.remove();
+  document.body.appendChild(ov);
 }
 
 // ── View registry ─────────────────────────────────────────────────────────
