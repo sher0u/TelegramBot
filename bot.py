@@ -127,25 +127,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if add_user(users, user.id, user.first_name, user.username):
         save_users(users)
     await _edit_or_reply(update, C.WELCOME, KB.main_menu_kb())
-    if not context.user_data.get("_persistent_kb_sent"):
+    from admin import ADMINS
+    if user.id in ADMINS and not context.user_data.get("_persistent_kb_sent"):
         context.user_data["_persistent_kb_sent"] = True
         try:
-            kb_msg = await context.bot.send_message(
+            await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="⁣",
+                text="✅ تم تفعيل زر العودة السريع",
                 reply_markup=KB.persistent_menu_kb(),
             )
-            asyncio.create_task(_delayed_delete(kb_msg, delay=5))
         except Exception:
             pass
-
-
-async def _delayed_delete(message, delay: float) -> None:
-    await asyncio.sleep(delay)
-    try:
-        await message.delete()
-    except Exception:
-        pass
 
 
 async def restart_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
