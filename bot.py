@@ -281,30 +281,47 @@ async def _send_listing_to_admin(context, lst: dict) -> None:
         logger.error("Failed to send listing to admin: %s", e)
 
 
-async def _post_to_groups(context, text: str, photo_id: str = None) -> None:
+async def _post_to_groups(context, text: str, photo_id: str = None,
+                          contact_user_id: int = None) -> None:
     """After admin approval — share the post into the configured Telegram groups."""
+    kb = None
+    if contact_user_id:
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(
+            "💬 تواصل مع المعلن", url=f"tg://user?id={contact_user_id}")]])
     for gid in GROUP_IDS:
         try:
             if photo_id:
                 await context.bot.send_photo(chat_id=gid, photo=photo_id,
-                                             caption=text, parse_mode=MD2)
+                                             caption=text, parse_mode=MD2, reply_markup=kb)
             else:
-                await context.bot.send_message(chat_id=gid, text=text, parse_mode=MD2)
+                await context.bot.send_message(chat_id=gid, text=text, parse_mode=MD2, reply_markup=kb)
         except Exception as e:
             logger.error("Failed to post to group %s: %s", gid, e)
 
 
 async def _broadcast_teaser(context, teaser: str, view_callback: str) -> None:
-    """After admin approval — notify every bot user with a 'view details' button."""
+    """Notify every bot user with a 'view details' button — sent in small batches
+    so it never blocks other bot activity while it runs in the background."""
     users = context.application.bot_data.get("users", {})
     ids   = get_user_ids(users)
     kb    = InlineKeyboardMarkup([[InlineKeyboardButton("👁️ عرض التفاصيل", callback_data=view_callback)]])
-    for uid in ids:
+
+    async def _send_one(uid):
         try:
             await context.bot.send_message(chat_id=uid, text=teaser, parse_mode=MD2, reply_markup=kb)
-            await asyncio.sleep(0.04)
         except Exception:
             pass
+
+    batch_size = 20
+    for i in range(0, len(ids), batch_size):
+        batch = ids[i:i + batch_size]
+        await asyncio.gather(*(_send_one(uid) for uid in batch))
+        await asyncio.sleep(1.0)
+
+
+def _broadcast_teaser_bg(context, teaser: str, view_callback: str) -> None:
+    """Fire-and-forget — schedules the batched broadcast without blocking the caller."""
+    asyncio.create_task(_broadcast_teaser(context, teaser, view_callback))
 
 
 def _fmt_travel(post: dict) -> str:
@@ -625,8 +642,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             except Exception:
                 pass
-            await _post_to_groups(context, _fmt_item(item, 1, 1), photo_id=item.get("photo_id"))
-            await _broadcast_teaser(
+            await _post_to_groups(context, _fmt_item(item, 1, 1), photo_id=item.get("photo_id"),
+                                  contact_user_id=item["user_id"])
+            _broadcast_teaser_bg(
                 context,
                 "🛒 *إعلان جديد في Avito Algeria\\!*\nهل تريد رؤية التفاصيل؟",
                 f"avito_goto_{item_id}",
@@ -967,8 +985,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             except Exception:
                 pass
-            await _post_to_groups(context, _fmt_listing(lst, 1, 1))
-            await _broadcast_teaser(
+            await _post_to_groups(context, _fmt_listing(lst, 1, 1), contact_user_id=lst["user_id"])
+            _broadcast_teaser_bg(
                 context,
                 "🏠 *إعلان سكن جديد\\!*\nهل تريد رؤية التفاصيل؟",
                 f"rm_goto_{lid}",
@@ -1118,8 +1136,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             except Exception:
                 pass
-            await _post_to_groups(context, _fmt_travel(post))
-            await _broadcast_teaser(
+            await _post_to_groups(context, _fmt_travel(post), contact_user_id=post["user_id"])
+            _broadcast_teaser_bg(
                 context,
                 "🧳 *إعلان سفر جديد\\!*\nشخص يحتاج هذا، تريد رؤية التفاصيل؟",
                 f"trv_view_{post_id}",
