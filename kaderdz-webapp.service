@@ -1,0 +1,19 @@
+[Unit]
+Description=KADER DZ Mini App API
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/opt/kaderdz-bot
+EnvironmentFile=/opt/kaderdz-bot/.env
+ExecStart=/opt/kaderdz-bot/.venv-webapp/bin/uvicorn webapp_api:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kaderdz-webapp
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """All inline keyboard builders — KADER DZ Bot."""
+import os
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 import marketplace_storage as MKT
+
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://app.kaderdz.ru")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -11,6 +14,7 @@ import marketplace_storage as MKT
 
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 فتح التطبيق الكامل",  web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📘 دليلك الشامل",       callback_data="guide_menu")],
         [InlineKeyboardButton("🏛️ الخدمات القنصلية",   callback_data="consular_menu")],
         [InlineKeyboardButton("⚙️ الخدمات",             callback_data="services_menu")],
@@ -209,6 +213,7 @@ def inquiry_service_kb() -> InlineKeyboardMarkup:
 
 def admin_panel_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🖥️ لوحة تحكم الويب",   web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin"))],
         [InlineKeyboardButton("📊 إحصائيات",           callback_data="adm_stats"),
          InlineKeyboardButton("📤 بث رسالة",           callback_data="adm_broadcast")],
         [InlineKeyboardButton("📋 تصدير المستخدمين",   callback_data="adm_export"),
@@ -317,6 +322,7 @@ def admin_report_kb(item_type: str, item_id: str) -> InlineKeyboardMarkup:
 def avito_main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔍 تصفح الإعلانات",     callback_data="avito_browse")],
+        [InlineKeyboardButton("🌐 تصفح بواجهة كاملة",  web_app=WebAppInfo(url=f"{WEBAPP_URL}/?tab=avito"))],
         [InlineKeyboardButton("➕ نشر إعلان مجانًا",   callback_data="avito_post")],
         [InlineKeyboardButton("📋 إعلاناتي",            callback_data="avito_myitems")],
         [InlineKeyboardButton("🔙 القائمة الرئيسية",   callback_data="Start")],
@@ -436,6 +442,7 @@ def avito_del_confirm_kb(item_id: str) -> InlineKeyboardMarkup:
 def roommate_main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔍 تصفح الإعلانات",      callback_data="rm_browse")],
+        [InlineKeyboardButton("🌐 تصفح بواجهة كاملة",   web_app=WebAppInfo(url=f"{WEBAPP_URL}/?tab=roommate"))],
         [InlineKeyboardButton("➕ نشر إعلان سكن",        callback_data="rm_post")],
         [InlineKeyboardButton("📋 إعلاناتي",              callback_data="rm_mylist")],
         [InlineKeyboardButton("🔙 القائمة الرئيسية",     callback_data="Start")],

@@ -1,0 +1,495 @@
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const INIT_DATA = tg?.initData || "";
+const TG_USER = tg?.initDataUnsafe?.user || null;
+
+function api(path, opts = {}) {
+  opts.headers = Object.assign({ "Content-Type": "application/json", "X-Telegram-Init-Data": INIT_DATA }, opts.headers || {});
+  return fetch(path, opts).then(async r => {
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    return r.json();
+  });
+}
+
+function esc(s) {
+  return (s || "").toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 2500);
+}
+
+// ── Router ──────────────────────────────────────────────────────────────────
+
+const stack = [];
+const elApp = document.getElementById("app");
+const elBack = document.getElementById("backBtn");
+const elTitle = document.getElementById("topTitle");
+
+function go(view, params = {}, title = "KADER DZ") {
+  stack.push({ view, params, title });
+  render();
+}
+
+function back() {
+  if (stack.length > 1) { stack.pop(); render(); }
+}
+
+elBack.onclick = back;
+
+function render() {
+  const top = stack[stack.length - 1];
+  elBack.classList.toggle("hidden", stack.length <= 1);
+  elTitle.textContent = top.title;
+  elApp.innerHTML = "";
+  VIEWS[top.view](top.params);
+  window.scrollTo(0, 0);
+}
+
+// ── Data caches ───────────────────────────────────────────────────────────
+
+let META = { categories: {}, cities: {}, routes: {} };
+
+async function loadMeta() {
+  META.categories = await api("/api/categories");
+  META.cities = await api("/api/cities");
+  META.routes = await api("/api/routes");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// HOME
+// ══════════════════════════════════════════════════════════════════════════
+
+function viewHome() {
+  elApp.innerHTML = `
+    <div class="home-grid">
+      <button class="home-tile" data-go="content" data-id="guide"><span class="emoji">📘</span><span class="label">دليلك الشامل</span></button>
+      <button class="home-tile" data-go="content" data-id="consular"><span class="emoji">🏛️</span><span class="label">الخدمات القنصلية</span></button>
+      <button class="home-tile" data-go="content" data-id="services"><span class="emoji">⚙️</span><span class="label">الخدمات</span></button>
+      <button class="home-tile" data-go="avito"><span class="emoji">🛒</span><span class="label">Avito Algeria</span></button>
+      <button class="home-tile" data-go="roommate"><span class="emoji">🏠</span><span class="label">شريك سكن</span></button>
+      <button class="home-tile" data-go="travel"><span class="emoji">🧳</span><span class="label">هبطلي ولا طلعلي معاك</span></button>
+      <button class="home-tile" data-go="inquiry"><span class="emoji">📝</span><span class="label">تقديم استفسار</span></button>
+      <button class="home-tile" data-go="content" data-id="about"><span class="emoji">ℹ️</span><span class="label">عن البوت</span></button>
+    </div>`;
+  elApp.querySelectorAll(".home-tile").forEach(btn => {
+    btn.onclick = () => {
+      const v = btn.dataset.go;
+      if (v === "content") go("contentCategory", { catId: btn.dataset.id }, btn.querySelector(".label").textContent);
+      else go(v, {}, btn.querySelector(".label").textContent);
+    };
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTENT (guide / consular / services / about)
+// ══════════════════════════════════════════════════════════════════════════
+
+let CONTENT_TREE = null;
+
+async function viewContentCategory({ catId }) {
+  if (!CONTENT_TREE) CONTENT_TREE = await api("/api/content");
+  const cat = CONTENT_TREE.find(c => c.id === catId);
+  let html = "";
+  for (const sec of cat.sections) {
+    if (sec.title) html += `<div class="section-title">${esc(sec.title)}</div>`;
+    for (const page of sec.pages) {
+      html += `<div class="list-item" data-slug="${page.slug}">
+        <span class="title">${esc(page.title)}</span><span class="chevron">‹</span>
+      </div>`;
+    }
+  }
+  elApp.innerHTML = html;
+  elApp.querySelectorAll(".list-item").forEach(el => {
+    el.onclick = () => {
+      const page = cat.sections.flatMap(s => s.pages).find(p => p.slug === el.dataset.slug);
+      go("contentPage", { page }, page.title);
+    };
+  });
+}
+
+function viewContentPage({ page }) {
+  elApp.innerHTML = `<div class="page-body">${page.body}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AVITO ALGERIA
+// ══════════════════════════════════════════════════════════════════════════
+
+const avitoState = { category: "all" };
+
+async function viewAvito() {
+  elApp.innerHTML = `
+    <div id="avitoFilters" class="filters"></div>
+    <div id="avitoGrid" class="grid"></div>
+    <div id="avitoEmpty" class="empty hidden">😔 لا توجد إعلانات بعد</div>
+    <button class="btn fab" id="avitoPostBtn">➕ نشر إعلان مجانًا</button>`;
+  renderAvitoFilters();
+  loadAvitoGrid();
+  document.getElementById("avitoPostBtn").onclick = () => go("avitoPost", {}, "نشر إعلان جديد");
+}
+
+function renderAvitoFilters() {
+  const el = document.getElementById("avitoFilters");
+  el.innerHTML = "";
+  const chips = [["all", "🔄 الكل"], ...Object.entries(META.categories)];
+  for (const [key, label] of chips) {
+    const chip = document.createElement("button");
+    chip.className = "chip" + (avitoState.category === key ? " active" : "");
+    chip.textContent = label;
+    chip.onclick = () => { avitoState.category = key; renderAvitoFilters(); loadAvitoGrid(); };
+    el.appendChild(chip);
+  }
+}
+
+async function loadAvitoGrid() {
+  const grid = document.getElementById("avitoGrid");
+  const empty = document.getElementById("avitoEmpty");
+  const items = await api(`/api/items?category=${avitoState.category}`);
+  grid.innerHTML = "";
+  empty.classList.toggle("hidden", items.length > 0);
+  for (const item of items) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.style.display='none'">` : ""}
+      <div class="title">${esc(item.title)}</div>
+      <div class="price">${esc(item.price)}</div>
+      <div class="meta">📍 ${esc(item.city)}</div>`;
+    card.onclick = () => openAvitoDetail(item.id);
+    grid.appendChild(card);
+  }
+}
+
+async function openAvitoDetail(id) {
+  const item = await api(`/api/items/${id}`);
+  const seller = item.username ? `@${esc(item.username)}` : esc(item.first_name);
+  const contact = item.username
+    ? `<a class="btn" href="https://t.me/${item.username}">💬 تواصل عبر تيليجرام</a>`
+    : `<div class="detail-row" style="color:var(--hint)">للتواصل، استخدم البوت مباشرة</div>`;
+  showDetail(`
+    ${item.photo_id ? `<img src="/api/photo/${item.photo_id}">` : ""}
+    <h2>${esc(item.title)}</h2>
+    <div class="detail-row"><b>السعر:</b> ${esc(item.price)}</div>
+    <div class="detail-row"><b>المدينة:</b> ${esc(item.city)}</div>
+    <div class="detail-row"><b>الوصف:</b> ${esc(item.description)}</div>
+    <div class="detail-row"><b>البائع:</b> ${seller}</div>
+    ${contact}`);
+}
+
+function viewAvitoPost() {
+  elApp.innerHTML = `
+    <div class="form-group">
+      <label>الفئة</label>
+      <div class="option-row" id="catPills"></div>
+    </div>
+    <div class="form-group"><label>عنوان الإعلان</label><input id="f_title" placeholder="مثال: iPhone 14 — حالة ممتازة"></div>
+    <div class="form-group"><label>السعر</label><input id="f_price" placeholder="مثال: 50 000 DZD"></div>
+    <div class="form-group"><label>المدينة</label><input id="f_city" placeholder="مثال: موسكو"></div>
+    <div class="form-group"><label>الوصف</label><textarea id="f_desc" placeholder="تفاصيل المنتج..."></textarea></div>
+    <button class="btn" id="submitBtn">نشر الإعلان</button>`;
+  let selectedCat = null;
+  const pills = document.getElementById("catPills");
+  for (const [key, label] of Object.entries(META.categories)) {
+    const pill = document.createElement("div");
+    pill.className = "option-pill";
+    pill.textContent = label;
+    pill.onclick = () => {
+      selectedCat = key;
+      pills.querySelectorAll(".option-pill").forEach(p => p.classList.remove("selected"));
+      pill.classList.add("selected");
+    };
+    pills.appendChild(pill);
+  }
+  document.getElementById("submitBtn").onclick = async () => {
+    const title = document.getElementById("f_title").value.trim();
+    const price = document.getElementById("f_price").value.trim();
+    const city = document.getElementById("f_city").value.trim();
+    const desc = document.getElementById("f_desc").value.trim();
+    if (!selectedCat || !title || !price || !city || !desc) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
+    try {
+      await api("/api/submit/item", { method: "POST", body: JSON.stringify({ category: selectedCat, title, price, city, description: desc }) });
+      toast("✅ تم استلام إعلانك، بانتظار المراجعة");
+      back();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ROOMMATE
+// ══════════════════════════════════════════════════════════════════════════
+
+const rmState = { city: "all" };
+
+async function viewRoommate() {
+  elApp.innerHTML = `
+    <div id="rmFilters" class="filters"></div>
+    <div id="rmGrid" class="grid"></div>
+    <div id="rmEmpty" class="empty hidden">😔 لا توجد إعلانات بعد</div>
+    <button class="btn fab" id="rmPostBtn">➕ نشر إعلان سكن</button>`;
+  renderRmFilters();
+  loadRmGrid();
+  document.getElementById("rmPostBtn").onclick = () => go("roommatePost", {}, "نشر إعلان سكن");
+}
+
+function renderRmFilters() {
+  const el = document.getElementById("rmFilters");
+  el.innerHTML = "";
+  const chips = [["all", "🔄 كل المدن"], ...Object.entries(META.cities)];
+  for (const [key, label] of chips) {
+    const chip = document.createElement("button");
+    chip.className = "chip" + (rmState.city === key ? " active" : "");
+    chip.textContent = label;
+    chip.onclick = () => { rmState.city = key; renderRmFilters(); loadRmGrid(); };
+    el.appendChild(chip);
+  }
+}
+
+async function loadRmGrid() {
+  const grid = document.getElementById("rmGrid");
+  const empty = document.getElementById("rmEmpty");
+  const items = await api(`/api/listings?city=${rmState.city}`);
+  grid.innerHTML = "";
+  empty.classList.toggle("hidden", items.length > 0);
+  for (const item of items) {
+    const card = document.createElement("div");
+    card.className = "card";
+    const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
+    card.innerHTML = `<div class="title">${rtype} — ${esc(item.city)}</div>
+      <div class="price">${esc(item.price)}</div>
+      <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>`;
+    card.onclick = () => openRmDetail(item.id);
+    grid.appendChild(card);
+  }
+}
+
+async function openRmDetail(id) {
+  const item = await api(`/api/listings/${id}`);
+  const poster = item.username ? `@${esc(item.username)}` : esc(item.first_name);
+  const contact = item.username
+    ? `<a class="btn" href="https://t.me/${item.username}">💬 تواصل عبر تيليجرام</a>`
+    : `<div class="detail-row" style="color:var(--hint)">للتواصل، استخدم البوت مباشرة</div>`;
+  const rtype = item.type === "need" ? "🔍 يبحث عن شريك سكن" : "🏠 عنده غرفة/وحدة";
+  showDetail(`
+    <h2>${rtype}</h2>
+    <div class="detail-row"><b>المدينة:</b> ${esc(item.city)}</div>
+    <div class="detail-row"><b>السعر:</b> ${esc(item.price)}</div>
+    <div class="detail-row"><b>المترو:</b> ${item.metro_distance === "near" ? "قريب" : "بعيد"}</div>
+    <div class="detail-row"><b>التفاصيل:</b> ${esc(item.description)}</div>
+    <div class="detail-row"><b>المُعلن:</b> ${poster}</div>
+    ${contact}`);
+}
+
+function viewRoommatePost() {
+  elApp.innerHTML = `
+    <div class="form-group"><label>نوع الإعلان</label>
+      <div class="option-row">
+        <div class="option-pill" data-v="need">🔍 أبحث عن شريك</div>
+        <div class="option-pill" data-v="have">🏠 عندي غرفة</div>
+      </div>
+    </div>
+    <div class="form-group"><label>نوع الوحدة</label>
+      <div class="option-row">
+        <div class="option-pill" data-rv="room1">🛏️ غرفة في شقة</div>
+        <div class="option-pill" data-rv="studio">🏠 استوديو</div>
+      </div>
+    </div>
+    <div class="form-group"><label>المدينة</label><input id="f_city" placeholder="مثال: موسكو"></div>
+    <div class="form-group"><label>السعر الشهري</label><input id="f_price" placeholder="مثال: 15 000 ₽"></div>
+    <div class="form-group"><label>المسافة من المترو</label>
+      <div class="option-row">
+        <div class="option-pill" data-mv="near">🚇 قريب</div>
+        <div class="option-pill" data-mv="far">🚌 بعيد</div>
+      </div>
+    </div>
+    <div class="form-group"><label>تفاصيل إضافية</label><textarea id="f_desc" placeholder="للطلاب، قريبة من الجامعة..."></textarea></div>
+    <button class="btn" id="submitBtn">نشر الإعلان</button>`;
+  let type = null, roomType = null, metro = null;
+  elApp.querySelectorAll("[data-v]").forEach(p => p.onclick = () => {
+    type = p.dataset.v;
+    elApp.querySelectorAll("[data-v]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  elApp.querySelectorAll("[data-rv]").forEach(p => p.onclick = () => {
+    roomType = p.dataset.rv;
+    elApp.querySelectorAll("[data-rv]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  elApp.querySelectorAll("[data-mv]").forEach(p => p.onclick = () => {
+    metro = p.dataset.mv;
+    elApp.querySelectorAll("[data-mv]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  document.getElementById("submitBtn").onclick = async () => {
+    const city = document.getElementById("f_city").value.trim();
+    const price = document.getElementById("f_price").value.trim();
+    const desc = document.getElementById("f_desc").value.trim();
+    if (!type || !roomType || !metro || !city || !price || !desc) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
+    try {
+      await api("/api/submit/listing", { method: "POST", body: JSON.stringify({
+        type, room_type: roomType, city_key: "other", city, price, metro_distance: metro, description: desc,
+      })});
+      toast("✅ تم استلام إعلانك، بانتظار المراجعة");
+      back();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// TRAVEL COMPANION
+// ══════════════════════════════════════════════════════════════════════════
+
+async function viewTravel() {
+  elApp.innerHTML = `
+    <div id="trvGrid" class="grid"></div>
+    <div id="trvEmpty" class="empty hidden">😔 لا توجد رحلات بعد</div>
+    <button class="btn fab" id="trvPostBtn">➕ أضف رحلتك</button>`;
+  loadTravelGrid();
+  document.getElementById("trvPostBtn").onclick = () => go("travelPost", {}, "أضف رحلتك");
+}
+
+async function loadTravelGrid() {
+  const grid = document.getElementById("trvGrid");
+  const empty = document.getElementById("trvEmpty");
+  const posts = await api("/api/travel");
+  grid.innerHTML = "";
+  empty.classList.toggle("hidden", posts.length > 0);
+  for (const p of posts) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<div class="title">${esc(META.routes[p.route] || p.route)}</div>
+      <div class="price">${esc(p.date)}</div>
+      <div class="meta">📍 ${esc(p.city)}</div>`;
+    card.onclick = () => openTravelDetail(p.id);
+    grid.appendChild(card);
+  }
+}
+
+async function openTravelDetail(id) {
+  const p = await api(`/api/travel/${id}`);
+  showDetail(`
+    <h2>${esc(META.routes[p.route] || p.route)}</h2>
+    <div class="detail-row"><b>التاريخ:</b> ${esc(p.date)}</div>
+    <div class="detail-row"><b>الطيران:</b> ${esc(p.flight)}</div>
+    <div class="detail-row"><b>التفاصيل:</b> ${esc(p.city)}</div>
+    <div class="detail-row"><b>التواصل:</b> ${esc(p.contact)}</div>
+    <div class="detail-row"><b>ملاحظة:</b> ${esc(p.note)}</div>`);
+}
+
+function viewTravelPost() {
+  elApp.innerHTML = `
+    <div class="form-group"><label>الاتجاه</label>
+      <div class="option-row">
+        <div class="option-pill" data-r="alg_to_msk">🇩🇿➡️🇷🇺 الجزائر→موسكو</div>
+        <div class="option-pill" data-r="msk_to_alg">🇷🇺➡️🇩🇿 موسكو→الجزائر</div>
+      </div>
+    </div>
+    <div class="form-group"><label>تاريخ السفر</label><input id="f_date" placeholder="مثال: 15/09/2026"></div>
+    <div class="form-group"><label>معلومات الطيران (اختياري)</label><input id="f_flight" placeholder="مثال: Aeroflot SU1234"></div>
+    <div class="form-group"><label>تفاصيل المغادرة/الوصول</label><input id="f_city" placeholder="مثال: مطار الجزائر — شيريميتيفو"></div>
+    <div class="form-group"><label>وسيلة التواصل</label><input id="f_contact" placeholder="مثال: @username"></div>
+    <div class="form-group"><label>ملاحظة</label><textarea id="f_note" placeholder="اختياري"></textarea></div>
+    <button class="btn" id="submitBtn">نشر الرحلة</button>`;
+  let route = null;
+  elApp.querySelectorAll("[data-r]").forEach(p => p.onclick = () => {
+    route = p.dataset.r;
+    elApp.querySelectorAll("[data-r]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  document.getElementById("submitBtn").onclick = async () => {
+    const date = document.getElementById("f_date").value.trim();
+    const flight = document.getElementById("f_flight").value.trim() || "—";
+    const city = document.getElementById("f_city").value.trim();
+    const contact = document.getElementById("f_contact").value.trim();
+    const note = document.getElementById("f_note").value.trim() || "—";
+    if (!route || !date || !city || !contact) { toast("⚠️ يرجى تعبئة الحقول المطلوبة"); return; }
+    try {
+      await api("/api/submit/travel", { method: "POST", body: JSON.stringify({ route, date, flight, city, contact, note }) });
+      toast("✅ تم استلام رحلتك، بانتظار المراجعة");
+      back();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INQUIRY FORM
+// ══════════════════════════════════════════════════════════════════════════
+
+function viewInquiry() {
+  elApp.innerHTML = `
+    <div class="form-group"><label>إلى من تريد توجيه استفسارك؟</label>
+      <div class="option-row">
+        <div class="option-pill" data-t="admin">👨‍💼 الإدارة</div>
+        <div class="option-pill" data-t="community">👥 الجالية</div>
+      </div>
+    </div>
+    <div class="form-group"><label>الاسم الكامل</label><input id="f_name"></div>
+    <div class="form-group"><label>رقم الهاتف</label><input id="f_phone" placeholder="+213... أو +7..."></div>
+    <div class="form-group"><label>الخدمة المطلوبة</label>
+      <div class="option-row">
+        <div class="option-pill" data-s="🎓 تسجيل جامعي">🎓 تسجيل جامعي</div>
+        <div class="option-pill" data-s="📑 ترجمة وثائق">📑 ترجمة وثائق</div>
+        <div class="option-pill" data-s="🗣️ استشارة عامة">🗣️ استشارة عامة</div>
+        <div class="option-pill" data-s="❓ أخرى">❓ أخرى</div>
+      </div>
+    </div>
+    <div class="form-group"><label>ملاحظات إضافية</label><textarea id="f_notes"></textarea></div>
+    <button class="btn" id="submitBtn">إرسال الاستفسار</button>`;
+  let target = "admin", service = null;
+  elApp.querySelectorAll("[data-t]").forEach(p => p.onclick = () => {
+    target = p.dataset.t;
+    elApp.querySelectorAll("[data-t]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  elApp.querySelectorAll("[data-s]").forEach(p => p.onclick = () => {
+    service = p.dataset.s;
+    elApp.querySelectorAll("[data-s]").forEach(x => x.classList.remove("selected"));
+    p.classList.add("selected");
+  });
+  document.getElementById("submitBtn").onclick = async () => {
+    const name = document.getElementById("f_name").value.trim();
+    const phone = document.getElementById("f_phone").value.trim();
+    const notes = document.getElementById("f_notes").value.trim() || "—";
+    if (!name || !phone || !service) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
+    try {
+      await api("/api/submit/inquiry", { method: "POST", body: JSON.stringify({ name, phone, service, notes, target }) });
+      toast("✅ تم استلام استفسارك");
+      back();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ── Detail sheet helper ─────────────────────────────────────────────────────
+
+function showDetail(html) {
+  const wrap = document.createElement("div");
+  wrap.className = "detail";
+  wrap.innerHTML = `<div class="detail-card"><button class="detail-close">✕</button><div>${html}</div></div>`;
+  wrap.onclick = (e) => { if (e.target === wrap) wrap.remove(); };
+  wrap.querySelector(".detail-close").onclick = () => wrap.remove();
+  document.body.appendChild(wrap);
+}
+
+// ── View registry ─────────────────────────────────────────────────────────
+
+const VIEWS = {
+  home: viewHome,
+  contentCategory: viewContentCategory,
+  contentPage: viewContentPage,
+  avito: viewAvito,
+  avitoPost: viewAvitoPost,
+  roommate: viewRoommate,
+  roommatePost: viewRoommatePost,
+  travel: viewTravel,
+  travelPost: viewTravelPost,
+  inquiry: viewInquiry,
+};
+
+(async () => {
+  await loadMeta();
+  go("home", {}, "KADER DZ 🇷🇺");
+})();
