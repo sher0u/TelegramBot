@@ -130,11 +130,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.user_data.get("_persistent_kb_sent"):
         context.user_data["_persistent_kb_sent"] = True
         try:
-            await context.bot.send_message(
+            # The reply-keyboard can only be attached via a real message (Telegram
+            # requires non-empty text) — send an invisible char then delete it right
+            # away so the keyboard stays active with nothing visible in the chat.
+            kb_msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=C.PERSISTENT_KB_INFO, parse_mode=MD2,
+                text="⁣",
                 reply_markup=KB.persistent_menu_kb(),
             )
+            await kb_msg.delete()
         except Exception:
             pass
 
