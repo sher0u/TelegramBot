@@ -69,7 +69,7 @@ function render() {
 elNav.querySelectorAll(".nav-item").forEach(btn => {
   btn.onclick = () => {
     const tab = btn.dataset.tab;
-    if (tab === "home") resetTab("home", "home", {}, "KADER DZ 🇷🇺");
+    if (tab === "home") resetTab("home", "home", {}, "KaderDzbot");
     if (tab === "avito") resetTab("avito", "avito", {}, "🛒 Avito Algeria");
     if (tab === "roommate") resetTab("roommate", "roommate", {}, "🏠 شريك سكن");
     if (tab === "travel") resetTab("travel", "travel", {}, "🧳 هبطلي ولا طلعلي معاك");
@@ -214,9 +214,26 @@ function renderAvitoFilters() {
   }
 }
 
+function showSkeleton(grid, count = 6) {
+  grid.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const sk = document.createElement("div");
+    sk.className = "skel-card";
+    sk.innerHTML = `<div class="skel-img"></div><div class="skel-line"></div><div class="skel-line short"></div>`;
+    grid.appendChild(sk);
+  }
+}
+
+function catEmoji(key) {
+  const label = META.categories[key] || "";
+  return label.split(" ")[0] || "📦";
+}
+
 async function loadAvitoGrid() {
   const grid = document.getElementById("avitoGrid");
   const empty = document.getElementById("avitoEmpty");
+  showSkeleton(grid);
+  empty.classList.add("hidden");
   const qs = new URLSearchParams({ category: avitoState.category, q: avitoState.q, sort: avitoState.sort });
   const items = await api(`/api/items?${qs}`);
   grid.innerHTML = "";
@@ -228,6 +245,7 @@ async function loadAvitoGrid() {
     card.innerHTML = `
       <div class="img-wrap">
         ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>📦</span>'">` : `<span class="placeholder-icon">📦</span>`}
+        <span class="cat-badge">${catEmoji(item.category)}</span>
         <span class="price-badge">${esc(item.price)}</span>
       </div>
       <div class="body">
@@ -334,16 +352,24 @@ function renderRmFilters() {
 async function loadRmGrid() {
   const grid = document.getElementById("rmGrid");
   const empty = document.getElementById("rmEmpty");
+  showSkeleton(grid);
+  empty.classList.add("hidden");
   const qs = new URLSearchParams({ city: rmState.city, q: rmState.q, sort: rmState.sort });
   const items = await api(`/api/listings?${qs}`);
   grid.innerHTML = "";
   empty.classList.toggle("hidden", items.length > 0);
+  if (!items.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد إعلانات بهذه المعايير`;
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "card";
     const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
+    const roomBadge = item.room_type === "studio" ? "🏠" : "🛏️";
     card.innerHTML = `
-      <div class="img-wrap"><span class="placeholder-icon">🏠</span><span class="price-badge">${esc(item.price)}</span></div>
+      <div class="img-wrap">
+        <span class="placeholder-icon">🏠</span>
+        <span class="cat-badge">${roomBadge}</span>
+        <span class="price-badge">${esc(item.price)}</span>
+      </div>
       <div class="body">
         <div class="title">${rtype} — ${esc(item.city)}</div>
         <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>
@@ -441,14 +467,22 @@ async function viewTravel() {
 async function loadTravelGrid() {
   const grid = document.getElementById("trvGrid");
   const empty = document.getElementById("trvEmpty");
+  showSkeleton(grid);
+  empty.classList.add("hidden");
   const posts = await api("/api/travel");
   grid.innerHTML = "";
   empty.classList.toggle("hidden", posts.length > 0);
+  if (!posts.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد رحلات بعد`;
   for (const p of posts) {
     const card = document.createElement("div");
     card.className = "card";
+    const dirEmoji = p.route === "alg_to_msk" ? "🇩🇿➡️🇷🇺" : "🇷🇺➡️🇩🇿";
     card.innerHTML = `
-      <div class="img-wrap"><span class="placeholder-icon">🧳</span><span class="price-badge">${esc(p.date)}</span></div>
+      <div class="img-wrap">
+        <span class="placeholder-icon">🧳</span>
+        <span class="cat-badge" style="width:auto; padding:3px 7px; font-size:11px;">${dirEmoji}</span>
+        <span class="price-badge">📅 ${esc(p.date)}</span>
+      </div>
       <div class="body">
         <div class="title">${esc(META.routes[p.route] || p.route)}</div>
         <div class="meta">📍 ${esc(p.city)}</div>
@@ -581,6 +615,6 @@ const VIEWS = {
 
 (async () => {
   await loadMeta();
-  go("home", {}, "KADER DZ 🇷🇺");
+  go("home", {}, "KaderDzbot");
   setActiveNav("home");
 })();
