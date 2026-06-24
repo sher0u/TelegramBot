@@ -282,13 +282,17 @@ async def _send_listing_to_admin(context, lst: dict) -> None:
         logger.error("Failed to send listing to admin: %s", e)
 
 
+BOT_USERNAME = os.getenv("BOT_USERNAME", "DzHelpInRuss_Bot")
+
+
 async def _post_to_groups(context, text: str, photo_id: str = None,
                           contact_user_id: int = None) -> None:
     """After admin approval — share the post into the configured Telegram groups."""
-    kb = None
+    rows = []
     if contact_user_id:
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(
-            "💬 تواصل مع المعلن", url=f"tg://user?id={contact_user_id}")]])
+        rows.append([InlineKeyboardButton("💬 تواصل مع المعلن", url=f"tg://user?id={contact_user_id}")])
+    rows.append([InlineKeyboardButton("🤖 الانتقال إلى البوت", url=f"https://t.me/{BOT_USERNAME}")])
+    kb = InlineKeyboardMarkup(rows)
     for gid in GROUP_IDS:
         try:
             if photo_id:

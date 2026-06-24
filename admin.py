@@ -10,7 +10,7 @@ import tempfile
 import warnings
 from datetime import datetime
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 from telegram.ext import (
@@ -40,6 +40,10 @@ ADMINS: list[int] = (
 )
 
 GROUP_IDS: list[int] = [int(x.strip()) for x in os.getenv("GROUP_IDS", "").split(",") if x.strip()]
+BOT_USERNAME = os.getenv("BOT_USERNAME", "DzHelpInRuss_Bot")
+_GROUP_BOT_LINK_KB = InlineKeyboardMarkup([[
+    InlineKeyboardButton("🤖 الانتقال إلى البوت", url=f"https://t.me/{BOT_USERNAME}")
+]])
 
 # ── Conversation states ───────────────────────────────────────────────────────
 
@@ -300,7 +304,7 @@ async def bc_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if send_groups:
         for gid in GROUP_IDS:
             try:
-                kwargs: dict = {"chat_id": gid, "text": msg}
+                kwargs: dict = {"chat_id": gid, "text": msg, "reply_markup": _GROUP_BOT_LINK_KB}
                 if parse_mode:
                     kwargs["parse_mode"] = parse_mode
                     kwargs["disable_web_page_preview"] = True
