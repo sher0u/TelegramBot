@@ -130,17 +130,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.user_data.get("_persistent_kb_sent"):
         context.user_data["_persistent_kb_sent"] = True
         try:
-            # The reply-keyboard can only be attached via a real message (Telegram
-            # requires non-empty text) — send an invisible char then delete it right
-            # away so the keyboard stays active with nothing visible in the chat.
             kb_msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="⁣",
                 reply_markup=KB.persistent_menu_kb(),
             )
-            await kb_msg.delete()
+            asyncio.create_task(_delayed_delete(kb_msg, delay=5))
         except Exception:
             pass
+
+
+async def _delayed_delete(message, delay: float) -> None:
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
 
 async def restart_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
