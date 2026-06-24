@@ -16,6 +16,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("⚙️ الخدمات",             callback_data="services_menu")],
         [InlineKeyboardButton("🛒 Avito Algeria",       callback_data="avito_menu"),
          InlineKeyboardButton("🏠 شريك سكن",           callback_data="rm_menu")],
+        [InlineKeyboardButton("🧳 هبطلي ولا طلعلي معاك", callback_data="trv_menu")],
         [InlineKeyboardButton("📝 تقديم استفسار",       callback_data="inquiry_start")],
         [InlineKeyboardButton("📢 القناة",  url="https://t.me/Kaader_Dz"),
          InlineKeyboardButton("📺 يوتيوب", url="https://www.youtube.com/@Yousfi-Abdelkader"),
@@ -576,3 +577,73 @@ def roommate_del_confirm_kb(listing_id: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("✅ نعم، احذف",  callback_data=f"rm_delcfm_{listing_id}"),
         InlineKeyboardButton("❌ لا",          callback_data="rm_mylist"),
     ]])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRAVEL COMPANION — هبطلي ولا طلعلي معاك
+# ══════════════════════════════════════════════════════════════════════════════
+
+def travel_main_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ أضف رحلتك",                   callback_data="trv_post_choose")],
+        [InlineKeyboardButton("🇷🇺➡️🇩🇿 من موسكو إلى الجزائر", callback_data="trv_post_msk_alg")],
+        [InlineKeyboardButton("🇩🇿➡️🇷🇺 من الجزائر إلى موسكو", callback_data="trv_post_alg_msk")],
+        [InlineKeyboardButton("📋 رحلاتي",                      callback_data="trv_mylist")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية",           callback_data="Start")],
+    ])
+
+
+def trv_direction_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇩🇿➡️🇷🇺 من الجزائر إلى موسكو", callback_data="trv_dir_alg_msk")],
+        [InlineKeyboardButton("🇷🇺➡️🇩🇿 من موسكو إلى الجزائر", callback_data="trv_dir_msk_alg")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="trv_cancel_post")],
+    ])
+
+
+def trv_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="trv_cancel_post")]])
+
+
+def trv_skip_flight_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏭️ تخطي", callback_data="trv_skip_flight")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="trv_cancel_post")],
+    ])
+
+
+def trv_my_kb(posts: list) -> InlineKeyboardMarkup:
+    rows = []
+    for p in posts[:10]:
+        status = "✅" if p["status"] == "approved" else "⏳"
+        rows.append([InlineKeyboardButton(
+            f"{status} {p['date']} — {p['city'][:18]}",
+            callback_data=f"trv_view_{p['id']}",
+        )])
+    rows.append([InlineKeyboardButton("🔙 رجوع", callback_data="trv_menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def trv_item_owner_kb(post_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🗑️ حذف الرحلة",  callback_data=f"trv_del_{post_id}")],
+        [InlineKeyboardButton("🔙 رحلاتي",       callback_data="trv_mylist")],
+    ])
+
+
+def trv_del_confirm_kb(post_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ نعم، احذف",  callback_data=f"trv_delcfm_{post_id}"),
+        InlineKeyboardButton("❌ لا",          callback_data="trv_mylist"),
+    ]])
+
+
+def admin_approve_trv_kb(post_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ موافقة", callback_data=f"trv_app_{post_id}"),
+        InlineKeyboardButton("❌ رفض",    callback_data=f"trv_rej_{post_id}"),
+    ]])
+
+
+def admin_active_trv_kb(post_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("✅ تمت الموافقة", callback_data="noop")]])

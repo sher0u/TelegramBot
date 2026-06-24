@@ -1,0 +1,22 @@
+[Unit]
+Description=KADER DZ Telegram Bot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/opt/kaderdz-bot
+EnvironmentFile=/opt/kaderdz-bot/.env
+ExecStart=/opt/kaderdz-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kaderdz-bot
+
+[Install]
+WantedBy=multi-user.target

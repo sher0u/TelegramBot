@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """KADER DZ Telegram Bot — main entry point."""
+import asyncio
 import logging
 import os
 import warnings
 
 from dotenv import load_dotenv
-from telegram import InputMediaPhoto, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 from telegram.ext import (
@@ -21,8 +22,9 @@ from telegram.ext import (
 import content as C
 import keyboards as KB
 import marketplace_storage as MKT
+import travel_storage as TRV
 from admin import get_admin_handlers
-from user_storage import add_user, load_users, save_users
+from user_storage import add_user, get_user_ids, load_users, save_users
 
 load_dotenv()
 
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN")
 INQUIRY_CHAT = os.getenv("INQUIRY_FORWARD_CHAT")
+GROUP_IDS    = [int(x.strip()) for x in os.getenv("GROUP_IDS", "").split(",") if x.strip()]
 
 # ── Conversation states ───────────────────────────────────────────────────────
 
@@ -44,6 +47,9 @@ _MKT_CAT, _MKT_TITLE, _MKT_PRICE, _MKT_CITY, _MKT_DESC, _MKT_PHOTO = range(10, 1
 
 # Roommate post: type → room_type → city_choice → city_text → price → metro → desc
 _RM_TYPE, _RM_ROOM_TYPE, _RM_CITY_CHOICE, _RM_CITY_TEXT, _RM_PRICE, _RM_METRO, _RM_DESC = range(20, 27)
+
+# Travel post: route → date → flight → city → contact → note
+_TRV_ROUTE, _TRV_DATE, _TRV_FLIGHT, _TRV_CITY, _TRV_CONTACT, _TRV_NOTE = range(30, 36)
 
 MD2 = ParseMode.MARKDOWN_V2
 
@@ -275,6 +281,81 @@ async def _send_listing_to_admin(context, lst: dict) -> None:
         logger.error("Failed to send listing to admin: %s", e)
 
 
+async def _post_to_groups(context, text: str, photo_id: str = None) -> None:
+    """After admin approval — share the post into the configured Telegram groups."""
+    for gid in GROUP_IDS:
+        try:
+            if photo_id:
+                await context.bot.send_photo(chat_id=gid, photo=photo_id,
+                                             caption=text, parse_mode=MD2)
+            else:
+                await context.bot.send_message(chat_id=gid, text=text, parse_mode=MD2)
+        except Exception as e:
+            logger.error("Failed to post to group %s: %s", gid, e)
+
+
+async def _broadcast_teaser(context, teaser: str, view_callback: str) -> None:
+    """After admin approval — notify every bot user with a 'view details' button."""
+    users = context.application.bot_data.get("users", {})
+    ids   = get_user_ids(users)
+    kb    = InlineKeyboardMarkup([[InlineKeyboardButton("👁️ عرض التفاصيل", callback_data=view_callback)]])
+    for uid in ids:
+        try:
+            await context.bot.send_message(chat_id=uid, text=teaser, parse_mode=MD2, reply_markup=kb)
+            await asyncio.sleep(0.04)
+        except Exception:
+            pass
+
+
+def _fmt_travel(post: dict) -> str:
+    route = TRV.ROUTES.get(post["route"], post["route"])
+    return (
+        "🧳 *هبطلي ولا طلعلي معاك*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🧭 *الاتجاه:* {_esc(route)}\n"
+        f"📅 *التاريخ:* {_esc(post['date'])}\n"
+        f"✈️ *الطيران:* {_esc(post.get('flight'))}\n"
+        f"📍 *التفاصيل:* {_esc(post['city'])}\n"
+        f"📞 *التواصل:* {_esc(post['contact'])}\n"
+        f"💬 *ملاحظة:* {_esc(post.get('note'))}"
+    )
+
+
+async def _send_travel_to_admin(context, post: dict) -> None:
+    from admin import ADMINS
+    fwd = INQUIRY_CHAT or (str(ADMINS[0]) if ADMINS else None)
+    if not fwd:
+        return
+    poster = f"@{_esc(post['username'])}" if post.get("username") else _esc(post.get("first_name"))
+    route  = _esc(TRV.ROUTES.get(post["route"], post["route"]))
+    msg = (
+        "🧳 *رحلة جديدة — هبطلي ولا طلعلي معاك*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 *المُعلن:* {_esc(post['first_name'])} \\({poster}\\)\n"
+        f"🆔 *ID:* `{post['user_id']}`\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🧭 *الاتجاه:* {route}\n"
+        f"📅 *التاريخ:* {_esc(post['date'])}\n"
+        f"✈️ *الطيران:* {_esc(post.get('flight'))}\n"
+        f"📍 *التفاصيل:* {_esc(post['city'])}\n"
+        f"📞 *التواصل:* {_esc(post['contact'])}\n"
+        f"💬 *ملاحظة:* {_esc(post.get('note'))}\n"
+        f"🆔 *post\\_id:* `{post['id']}`"
+    )
+    try:
+        await context.bot.send_message(
+            chat_id=int(fwd), text=msg, parse_mode=MD2,
+            reply_markup=KB.admin_approve_trv_kb(post["id"]),
+        )
+    except Exception as e:
+        logger.error("Failed to send travel post to admin: %s", e)
+
+
+def _trv_cleanup(ctx) -> None:
+    for k in ("trv_route", "trv_date", "trv_flight", "trv_city", "trv_contact"):
+        ctx.user_data.pop(k, None)
+
+
 def _mkt_cleanup(ctx) -> None:
     for k in ("mkt_cat", "mkt_title", "mkt_price", "mkt_city", "mkt_desc", "mkt_photo"):
         ctx.user_data.pop(k, None)
@@ -432,6 +513,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             idx = max(0, min(idx, len(items) - 1))
             await _show_item(query, items[idx], idx, items, active_cat=cat)
 
+    elif d.startswith("avito_goto_"):
+        item_id = d[len("avito_goto_"):]
+        item    = MKT.get_item_by_id(item_id)
+        if not item or item["status"] != "approved":
+            await query.answer("الإعلان غير متوفر", show_alert=True)
+            return
+        items = MKT.get_approved_items()
+        idx   = next((i for i, it in enumerate(items) if it["id"] == item_id), 0)
+        await _show_item(query, item, idx, items, active_cat="all")
+
     elif d == "avito_myitems":
         user  = update.effective_user
         items = MKT.get_user_items(user.id)
@@ -534,6 +625,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             except Exception:
                 pass
+            await _post_to_groups(context, _fmt_item(item, 1, 1), photo_id=item.get("photo_id"))
+            await _broadcast_teaser(
+                context,
+                "🛒 *إعلان جديد في Avito Algeria\\!*\nهل تريد رؤية التفاصيل؟",
+                f"avito_goto_{item_id}",
+            )
         else:
             await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
 
@@ -792,6 +889,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(C.RM_REPORT_DONE, parse_mode=MD2,
                                       reply_markup=KB.roommate_main_kb())
 
+    elif d.startswith("rm_goto_"):
+        lid = d[len("rm_goto_"):]
+        lst = MKT.get_listing_by_id(lid)
+        if not lst or lst["status"] != "approved":
+            await query.answer("الإعلان غير متوفر", show_alert=True)
+            return
+        listings = MKT.get_approved_listings()
+        idx      = next((i for i, l in enumerate(listings) if l["id"] == lid), 0)
+        await query.edit_message_text(
+            _fmt_listing(lst, idx + 1, len(listings)), parse_mode=MD2,
+            reply_markup=KB.roommate_browse_kb(idx, len(listings), poster_user_id=lst.get("user_id"))
+        )
+
     # ── Roommate my listings ──────────────────────────────────────────────────
     elif d == "rm_mylist":
         user     = update.effective_user
@@ -857,6 +967,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             except Exception:
                 pass
+            await _post_to_groups(context, _fmt_listing(lst, 1, 1))
+            await _broadcast_teaser(
+                context,
+                "🏠 *إعلان سكن جديد\\!*\nهل تريد رؤية التفاصيل؟",
+                f"rm_goto_{lid}",
+            )
         else:
             await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
 
@@ -937,6 +1053,94 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif d.startswith("rpt_ign_"):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.answer("✅ تم تجاهل البلاغ")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # TRAVEL COMPANION — هبطلي ولا طلعلي معاك
+    # ══════════════════════════════════════════════════════════════════════════
+
+    elif d == "trv_menu":
+        await query.edit_message_text(C.TRAVEL_MAIN, parse_mode=MD2,
+                                      reply_markup=KB.travel_main_kb())
+
+    elif d == "trv_mylist":
+        user  = update.effective_user
+        posts = TRV.get_user_posts(user.id)
+        if not posts:
+            await query.edit_message_text(C.TRV_MY_EMPTY, parse_mode=MD2,
+                                          reply_markup=KB.travel_main_kb())
+        else:
+            await query.edit_message_text(
+                f"📋 *رحلاتي* \\({len(posts)}\\)\n⏳ قيد المراجعة  •  ✅ منشور",
+                parse_mode=MD2, reply_markup=KB.trv_my_kb(posts)
+            )
+
+    elif d.startswith("trv_view_"):
+        post_id = d[len("trv_view_"):]
+        post    = TRV.get_post_by_id(post_id)
+        if not post:
+            await query.answer("الرحلة غير موجودة", show_alert=True)
+            return
+        user        = update.effective_user
+        is_owner    = post["user_id"] == user.id
+        status_line = ("\n📊 الحالة: " + ("✅ منشور" if post["status"] == "approved" else "⏳ قيد المراجعة")) if is_owner else ""
+        text        = _fmt_travel(post) + status_line
+        kb          = KB.trv_item_owner_kb(post_id) if is_owner else KB.back_kb("trv_menu")
+        await query.edit_message_text(text, parse_mode=MD2, reply_markup=kb)
+
+    elif d.startswith("trv_del_"):
+        post_id = d[len("trv_del_"):]
+        await query.edit_message_text(
+            "⚠️ *هل أنت متأكد من حذف هذه الرحلة؟*",
+            parse_mode=MD2, reply_markup=KB.trv_del_confirm_kb(post_id)
+        )
+
+    elif d.startswith("trv_delcfm_"):
+        post_id = d[len("trv_delcfm_"):]
+        TRV.delete_post(post_id)
+        await query.edit_message_text(C.TRV_DELETED, parse_mode=MD2,
+                                      reply_markup=KB.travel_main_kb())
+
+    elif d == "trv_cancel_post":
+        await query.edit_message_text(C.TRV_CANCELLED, parse_mode=MD2,
+                                      reply_markup=KB.travel_main_kb())
+
+    # ── Admin: travel approval ───────────────────────────────────────────────
+    elif d.startswith("trv_app_"):
+        post_id = d[len("trv_app_"):]
+        post    = TRV.get_post_by_id(post_id)
+        if post:
+            TRV.approve_post(post_id)
+            await query.edit_message_reply_markup(reply_markup=KB.admin_active_trv_kb(post_id))
+            try:
+                await context.bot.send_message(
+                    chat_id=post["user_id"], text=C.TRV_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.travel_main_kb()
+                )
+            except Exception:
+                pass
+            await _post_to_groups(context, _fmt_travel(post))
+            await _broadcast_teaser(
+                context,
+                "🧳 *إعلان سفر جديد\\!*\nشخص يحتاج هذا، تريد رؤية التفاصيل؟",
+                f"trv_view_{post_id}",
+            )
+        else:
+            await query.answer("الرحلة غير موجودة أو تم حذفها", show_alert=True)
+
+    elif d.startswith("trv_rej_"):
+        post_id = d[len("trv_rej_"):]
+        post    = TRV.get_post_by_id(post_id)
+        if post:
+            TRV.delete_post(post_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=post["user_id"], text=C.TRV_REJECTED_NOTIFY, parse_mode=MD2
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الرحلة غير موجودة", show_alert=True)
 
     # ── Unknown ───────────────────────────────────────────────────────────────
     else:
@@ -1240,6 +1444,90 @@ async def rm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# TRAVEL CONVERSATION — post a new travel companion request
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def trv_post_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    if data == "trv_post_choose":
+        await _conv_edit(query, context, C.TRV_POST_ROUTE, KB.trv_direction_kb())
+        return _TRV_ROUTE
+    context.user_data["trv_route"] = "alg_to_msk" if data == "trv_post_alg_msk" else "msk_to_alg"
+    await _conv_edit(query, context, C.TRV_POST_DATE, KB.trv_cancel_kb())
+    return _TRV_DATE
+
+
+async def trv_route_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data["trv_route"] = "alg_to_msk" if query.data == "trv_dir_alg_msk" else "msk_to_alg"
+    await _conv_edit(query, context, C.TRV_POST_DATE, KB.trv_cancel_kb())
+    return _TRV_DATE
+
+
+async def trv_get_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["trv_date"] = update.message.text.strip()
+    await _conv_reply(update, context, C.TRV_POST_FLIGHT, KB.trv_skip_flight_kb())
+    return _TRV_FLIGHT
+
+
+async def trv_get_flight(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["trv_flight"] = update.message.text.strip()
+    await _conv_reply(update, context, C.TRV_POST_CITY, KB.trv_cancel_kb())
+    return _TRV_CITY
+
+
+async def trv_skip_flight(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data["trv_flight"] = "—"
+    await _conv_edit(query, context, C.TRV_POST_CITY, KB.trv_cancel_kb())
+    return _TRV_CITY
+
+
+async def trv_get_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["trv_city"] = update.message.text.strip()
+    await _conv_reply(update, context, C.TRV_POST_CONTACT, KB.trv_cancel_kb())
+    return _TRV_CONTACT
+
+
+async def trv_get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["trv_contact"] = update.message.text.strip()
+    await _conv_reply(update, context, C.TRV_POST_NOTE, KB.trv_cancel_kb())
+    return _TRV_NOTE
+
+
+async def trv_get_note(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    note = update.message.text.strip()
+    if note == "-":
+        note = "—"
+    user = update.effective_user
+    ud   = context.user_data
+    post = TRV.add_post(
+        user_id=user.id, username=user.username, first_name=user.first_name,
+        route=ud.get("trv_route", "alg_to_msk"), date=ud.get("trv_date", ""),
+        flight=ud.get("trv_flight", "—"), city=ud.get("trv_city", ""),
+        contact=ud.get("trv_contact", ""), note=note,
+    )
+    await _conv_reply(update, context, C.TRV_POST_PENDING, KB.back_to_main_kb())
+    await _send_travel_to_admin(context, post)
+    _trv_cleanup(context)
+    return ConversationHandler.END
+
+
+async def trv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.callback_query:
+        await update.callback_query.answer()
+        await _conv_edit(update.callback_query, context, C.TRV_CANCELLED, KB.travel_main_kb())
+    else:
+        await _conv_reply(update, context, C.TRV_CANCELLED, KB.travel_main_kb())
+    _trv_cleanup(context)
+    return ConversationHandler.END
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ERROR HANDLER
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1321,12 +1609,32 @@ def main() -> None:
             per_user=True, per_chat=True,
         )
 
+    # ── Travel ConversationHandler ─────────────────────────────────────────────
+    _trv_cxl = CallbackQueryHandler(trv_cancel, pattern="^trv_cancel_post$")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        travel_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(trv_post_start, pattern="^trv_post_(choose|msk_alg|alg_msk)$")],
+            states={
+                _TRV_ROUTE:   [_trv_cxl, CallbackQueryHandler(trv_route_chosen, pattern="^trv_dir_")],
+                _TRV_DATE:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_date)],
+                _TRV_FLIGHT:  [_trv_cxl, CallbackQueryHandler(trv_skip_flight, pattern="^trv_skip_flight$"),
+                               MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_flight)],
+                _TRV_CITY:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_city)],
+                _TRV_CONTACT: [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_contact)],
+                _TRV_NOTE:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_note)],
+            },
+            fallbacks=[CommandHandler("cancel", trv_cancel)],
+            per_user=True, per_chat=True,
+        )
+
     # ── Register handlers (order matters!) ────────────────────────────────────
     for h in get_admin_handlers():
         app.add_handler(h)
 
     app.add_handler(marketplace_conv)
     app.add_handler(roommate_conv)
+    app.add_handler(travel_conv)
     app.add_handler(inquiry_conv)
 
     app.add_handler(CommandHandler("start",   start))
