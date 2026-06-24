@@ -567,8 +567,8 @@ function viewTravelPost() {
   elApp.innerHTML = `
     <div class="form-group"><label>الاتجاه</label>
       <div class="option-row">
-        <div class="option-pill" data-r="alg_to_msk">🇩🇿➡️🇷🇺 الجزائر→موسكو</div>
-        <div class="option-pill" data-r="msk_to_alg">🇷🇺➡️🇩🇿 موسكو→الجزائر</div>
+        <div class="option-pill" data-r="alg_to_msk">🇩🇿➡️🇷🇺 الجزائر→روسيا</div>
+        <div class="option-pill" data-r="msk_to_alg">🇷🇺➡️🇩🇿 روسيا→الجزائر</div>
       </div>
     </div>
     <div class="form-group"><label>تاريخ السفر</label><input id="f_date" placeholder="مثال: 15/09/2026"></div>
