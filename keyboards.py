@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """All inline keyboard builders — KADER DZ Bot."""
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 import marketplace_storage as MKT
 
 
@@ -31,6 +31,15 @@ def back_kb(to: str = "Start") -> InlineKeyboardMarkup:
 
 def back_to_main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="Start")]])
+
+
+def persistent_menu_kb() -> ReplyKeyboardMarkup:
+    """Always-visible bottom keyboard so the user never needs to type /start."""
+    return ReplyKeyboardMarkup(
+        [["🏠 القائمة الرئيسية"]],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
