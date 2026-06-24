@@ -210,10 +210,16 @@ def routes():
 
 
 @app.get("/api/items")
-def list_items(category: str | None = None):
+def list_items(category: str | None = None, q: str | None = None, sort: str | None = None):
     items = MKT.get_approved_items()
     if category and category != "all":
         items = [i for i in items if i["category"] == category]
+    if q:
+        ql = q.strip().lower()
+        items = [i for i in items if ql in i["title"].lower() or ql in i["description"].lower()
+                  or ql in i["city"].lower()]
+    if sort in ("asc", "desc"):
+        items = sorted(items, key=lambda i: MKT._price_key(i["price"]), reverse=(sort == "desc"))
     return items
 
 
@@ -226,8 +232,13 @@ def get_item(item_id: str):
 
 
 @app.get("/api/listings")
-def list_listings(city: str | None = None, metro: str | None = None, sort: str | None = None):
-    return MKT.filter_listings(city_key=city, metro=metro, sort_price=sort)
+def list_listings(city: str | None = None, metro: str | None = None, sort: str | None = None,
+                  q: str | None = None):
+    listings = MKT.filter_listings(city_key=city, metro=metro, sort_price=sort)
+    if q:
+        ql = q.strip().lower()
+        listings = [l for l in listings if ql in l["description"].lower() or ql in l["city"].lower()]
+    return listings
 
 
 @app.get("/api/listings/{listing_id}")

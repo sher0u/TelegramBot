@@ -14,7 +14,6 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://app.kaderdz.ru")
 
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 فتح التطبيق الكامل",  web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📘 دليلك الشامل",       callback_data="guide_menu")],
         [InlineKeyboardButton("🏛️ الخدمات القنصلية",   callback_data="consular_menu")],
         [InlineKeyboardButton("⚙️ الخدمات",             callback_data="services_menu")],

@@ -45,6 +45,27 @@ def get_user_ids(users: dict) -> list[int]:
     return [int(k) for k in users]
 
 
+def snooze_teasers(users: dict, user_id: int, days: int = 7) -> None:
+    """Suppress 'new listing' teaser broadcasts to this user for N days."""
+    key = str(user_id)
+    if key in users:
+        users[key]["teasers_snoozed_until"] = (datetime.now() + timedelta(days=days)).isoformat()
+        save_users(users)
+
+
+def is_teaser_snoozed(users: dict, user_id: int) -> bool:
+    data = users.get(str(user_id))
+    if not data:
+        return False
+    until = data.get("teasers_snoozed_until")
+    if not until:
+        return False
+    try:
+        return datetime.fromisoformat(until) > datetime.now()
+    except ValueError:
+        return False
+
+
 def get_stats(users: dict) -> dict:
     now = datetime.now()
     today = now.date()

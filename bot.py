@@ -25,7 +25,9 @@ import inquiry_storage as INQS
 import marketplace_storage as MKT
 import travel_storage as TRV
 from admin import get_admin_handlers
-from user_storage import add_user, get_user_ids, load_users, save_users
+from user_storage import (
+    add_user, get_user_ids, is_teaser_snoozed, load_users, save_users, snooze_teasers,
+)
 
 load_dotenv()
 
@@ -308,8 +310,11 @@ async def _broadcast_teaser(context, teaser: str, view_callback: str) -> None:
     """Notify every bot user with a 'view details' button — sent in small batches
     so it never blocks other bot activity while it runs in the background."""
     users = context.application.bot_data.get("users", {})
-    ids   = get_user_ids(users)
-    kb    = InlineKeyboardMarkup([[InlineKeyboardButton("👁️ عرض التفاصيل", callback_data=view_callback)]])
+    ids   = [uid for uid in get_user_ids(users) if not is_teaser_snoozed(users, uid)]
+    kb    = InlineKeyboardMarkup([[
+        InlineKeyboardButton("👁️ عرض التفاصيل", callback_data=view_callback),
+        InlineKeyboardButton("🚫 غير مهتم", callback_data="tsr_skip"),
+    ]])
 
     async def _send_one(uid):
         try:
@@ -403,6 +408,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif d == "noop":    pass
     elif d == "contact": await query.edit_message_text(C.CONTACT_TEXT, parse_mode=MD2,
                                                         reply_markup=KB.contact_kb())
+
+    elif d == "tsr_skip":
+        users = context.application.bot_data.get("users", {})
+        snooze_teasers(users, update.effective_user.id, days=7)
+        try:
+            await query.message.delete()
+        except Exception:
+            await query.edit_message_reply_markup(reply_markup=None)
+        await query.answer("🚫 لن تتلقى إشعارات مشابهة لمدة 7 أيام")
 
     # ── Services ──────────────────────────────────────────────────────────────
     elif d == "services_menu":

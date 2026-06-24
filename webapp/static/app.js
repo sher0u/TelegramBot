@@ -2,7 +2,6 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 const INIT_DATA = tg?.initData || "";
-const TG_USER = tg?.initDataUnsafe?.user || null;
 
 function api(path, opts = {}) {
   opts.headers = Object.assign({ "Content-Type": "application/json", "X-Telegram-Init-Data": INIT_DATA }, opts.headers || {});
@@ -23,12 +22,18 @@ function toast(msg) {
   setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 
 const stack = [];
 const elApp = document.getElementById("app");
 const elBack = document.getElementById("backBtn");
 const elTitle = document.getElementById("topTitle");
+const elNav = document.getElementById("bottomNav");
 
 function go(view, params = {}, title = "KADER DZ") {
   stack.push({ view, params, title });
@@ -37,6 +42,17 @@ function go(view, params = {}, title = "KADER DZ") {
 
 function back() {
   if (stack.length > 1) { stack.pop(); render(); }
+}
+
+function resetTab(tab, view, params, title) {
+  stack.length = 0;
+  stack.push({ view, params, title, tab });
+  render();
+  setActiveNav(tab);
+}
+
+function setActiveNav(tab) {
+  elNav.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
 }
 
 elBack.onclick = back;
@@ -49,6 +65,17 @@ function render() {
   VIEWS[top.view](top.params);
   window.scrollTo(0, 0);
 }
+
+elNav.querySelectorAll(".nav-item").forEach(btn => {
+  btn.onclick = () => {
+    const tab = btn.dataset.tab;
+    if (tab === "home") resetTab("home", "home", {}, "KADER DZ 🇷🇺");
+    if (tab === "avito") resetTab("avito", "avito", {}, "🛒 Avito Algeria");
+    if (tab === "roommate") resetTab("roommate", "roommate", {}, "🏠 شريك سكن");
+    if (tab === "travel") resetTab("travel", "travel", {}, "🧳 هبطلي ولا طلعلي معاك");
+    if (tab === "more") resetTab("more", "more", {}, "المزيد");
+  };
+});
 
 // ── Data caches ───────────────────────────────────────────────────────────
 
@@ -66,21 +93,47 @@ async function loadMeta() {
 
 function viewHome() {
   elApp.innerHTML = `
+    <div class="hero">
+      <div class="title">مرحبًا بك في KADER DZ 🇷🇺</div>
+      <div class="subtitle">مساعدك الشامل للدراسة والحياة في روسيا — تصفح، انشر، وتواصل مع المجتمع كله من هنا.</div>
+    </div>
     <div class="home-grid">
-      <button class="home-tile" data-go="content" data-id="guide"><span class="emoji">📘</span><span class="label">دليلك الشامل</span></button>
-      <button class="home-tile" data-go="content" data-id="consular"><span class="emoji">🏛️</span><span class="label">الخدمات القنصلية</span></button>
-      <button class="home-tile" data-go="content" data-id="services"><span class="emoji">⚙️</span><span class="label">الخدمات</span></button>
-      <button class="home-tile" data-go="avito"><span class="emoji">🛒</span><span class="label">Avito Algeria</span></button>
-      <button class="home-tile" data-go="roommate"><span class="emoji">🏠</span><span class="label">شريك سكن</span></button>
-      <button class="home-tile" data-go="travel"><span class="emoji">🧳</span><span class="label">هبطلي ولا طلعلي معاك</span></button>
-      <button class="home-tile" data-go="inquiry"><span class="emoji">📝</span><span class="label">تقديم استفسار</span></button>
-      <button class="home-tile" data-go="content" data-id="about"><span class="emoji">ℹ️</span><span class="label">عن البوت</span></button>
+      <button class="home-tile" data-go="content" data-id="guide"><span class="icon-circle">📘</span><span class="label">دليلك الشامل</span></button>
+      <button class="home-tile" data-go="content" data-id="consular"><span class="icon-circle">🏛️</span><span class="label">الخدمات القنصلية</span></button>
+      <button class="home-tile" data-go="content" data-id="services"><span class="icon-circle">⚙️</span><span class="label">الخدمات</span></button>
+      <button class="home-tile" data-go="avito"><span class="icon-circle">🛒</span><span class="label">Avito Algeria</span></button>
+      <button class="home-tile" data-go="roommate"><span class="icon-circle">🏠</span><span class="label">شريك سكن</span></button>
+      <button class="home-tile" data-go="travel"><span class="icon-circle">🧳</span><span class="label">هبطلي ولا طلعلي معاك</span></button>
+      <button class="home-tile" data-go="inquiry"><span class="icon-circle">📝</span><span class="label">تقديم استفسار</span></button>
+      <button class="home-tile" data-go="content" data-id="about"><span class="icon-circle">ℹ️</span><span class="label">عن البوت</span></button>
     </div>`;
   elApp.querySelectorAll(".home-tile").forEach(btn => {
     btn.onclick = () => {
       const v = btn.dataset.go;
-      if (v === "content") go("contentCategory", { catId: btn.dataset.id }, btn.querySelector(".label").textContent);
-      else go(v, {}, btn.querySelector(".label").textContent);
+      const label = btn.querySelector(".label").textContent;
+      if (v === "content") go("contentCategory", { catId: btn.dataset.id }, label);
+      else go(v, {}, label);
+    };
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MORE (secondary sections, reachable from bottom nav)
+// ══════════════════════════════════════════════════════════════════════════
+
+function viewMore() {
+  elApp.innerHTML = `
+    <div class="list-item" data-go="content" data-id="guide"><span class="title">📘 دليلك الشامل</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="consular"><span class="title">🏛️ الخدمات القنصلية</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="services"><span class="title">⚙️ الخدمات</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="inquiry"><span class="title">📝 تقديم استفسار</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="about"><span class="title">ℹ️ عن البوت</span><span class="chevron">‹</span></div>`;
+  elApp.querySelectorAll(".list-item").forEach(el => {
+    el.onclick = () => {
+      const v = el.dataset.go;
+      const label = el.querySelector(".title").textContent;
+      if (v === "content") go("contentCategory", { catId: el.dataset.id }, label);
+      else go(v, {}, label);
     };
   });
 }
@@ -120,17 +173,32 @@ function viewContentPage({ page }) {
 // AVITO ALGERIA
 // ══════════════════════════════════════════════════════════════════════════
 
-const avitoState = { category: "all" };
+const avitoState = { category: "all", q: "", sort: "" };
 
 async function viewAvito() {
   elApp.innerHTML = `
+    <div class="search-bar"><span class="icon">🔍</span><input id="avitoSearch" placeholder="بحث عن منتج، مدينة..."></div>
+    <div class="segmented" id="avitoSort">
+      <div class="seg" data-v="">🔄 الأحدث</div>
+      <div class="seg" data-v="asc">💰 الأرخص أولًا</div>
+      <div class="seg" data-v="desc">💎 الأغلى أولًا</div>
+    </div>
     <div id="avitoFilters" class="filters"></div>
     <div id="avitoGrid" class="grid"></div>
-    <div id="avitoEmpty" class="empty hidden">😔 لا توجد إعلانات بعد</div>
+    <div id="avitoEmpty" class="empty hidden">😔 لا توجد إعلانات بهذه المعايير</div>
     <button class="btn fab" id="avitoPostBtn">➕ نشر إعلان مجانًا</button>`;
   renderAvitoFilters();
+  renderSegmented(document.getElementById("avitoSort"), avitoState.sort, v => { avitoState.sort = v; loadAvitoGrid(); });
+  document.getElementById("avitoSearch").oninput = debounce(e => { avitoState.q = e.target.value; loadAvitoGrid(); }, 350);
   loadAvitoGrid();
   document.getElementById("avitoPostBtn").onclick = () => go("avitoPost", {}, "نشر إعلان جديد");
+}
+
+function renderSegmented(el, active, onPick) {
+  el.querySelectorAll(".seg").forEach(seg => {
+    seg.classList.toggle("active", seg.dataset.v === active);
+    seg.onclick = () => { onPick(seg.dataset.v); el.querySelectorAll(".seg").forEach(s => s.classList.toggle("active", s === seg)); };
+  });
 }
 
 function renderAvitoFilters() {
@@ -149,17 +217,23 @@ function renderAvitoFilters() {
 async function loadAvitoGrid() {
   const grid = document.getElementById("avitoGrid");
   const empty = document.getElementById("avitoEmpty");
-  const items = await api(`/api/items?category=${avitoState.category}`);
+  const qs = new URLSearchParams({ category: avitoState.category, q: avitoState.q, sort: avitoState.sort });
+  const items = await api(`/api/items?${qs}`);
   grid.innerHTML = "";
   empty.classList.toggle("hidden", items.length > 0);
+  if (!items.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد إعلانات بهذه المعايير`;
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.style.display='none'">` : ""}
-      <div class="title">${esc(item.title)}</div>
-      <div class="price">${esc(item.price)}</div>
-      <div class="meta">📍 ${esc(item.city)}</div>`;
+      <div class="img-wrap">
+        ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>📦</span>'">` : `<span class="placeholder-icon">📦</span>`}
+        <span class="price-badge">${esc(item.price)}</span>
+      </div>
+      <div class="body">
+        <div class="title">${esc(item.title)}</div>
+        <div class="meta">📍 ${esc(item.city)}</div>
+      </div>`;
     card.onclick = () => openAvitoDetail(item.id);
     grid.appendChild(card);
   }
@@ -223,15 +297,23 @@ function viewAvitoPost() {
 // ROOMMATE
 // ══════════════════════════════════════════════════════════════════════════
 
-const rmState = { city: "all" };
+const rmState = { city: "all", q: "", sort: "" };
 
 async function viewRoommate() {
   elApp.innerHTML = `
+    <div class="search-bar"><span class="icon">🔍</span><input id="rmSearch" placeholder="بحث عن مدينة، تفاصيل..."></div>
+    <div class="segmented" id="rmSort">
+      <div class="seg" data-v="">🔄 الأحدث</div>
+      <div class="seg" data-v="asc">💰 الأرخص أولًا</div>
+      <div class="seg" data-v="desc">💎 الأغلى أولًا</div>
+    </div>
     <div id="rmFilters" class="filters"></div>
     <div id="rmGrid" class="grid"></div>
     <div id="rmEmpty" class="empty hidden">😔 لا توجد إعلانات بعد</div>
     <button class="btn fab" id="rmPostBtn">➕ نشر إعلان سكن</button>`;
   renderRmFilters();
+  renderSegmented(document.getElementById("rmSort"), rmState.sort, v => { rmState.sort = v; loadRmGrid(); });
+  document.getElementById("rmSearch").oninput = debounce(e => { rmState.q = e.target.value; loadRmGrid(); }, 350);
   loadRmGrid();
   document.getElementById("rmPostBtn").onclick = () => go("roommatePost", {}, "نشر إعلان سكن");
 }
@@ -252,16 +334,20 @@ function renderRmFilters() {
 async function loadRmGrid() {
   const grid = document.getElementById("rmGrid");
   const empty = document.getElementById("rmEmpty");
-  const items = await api(`/api/listings?city=${rmState.city}`);
+  const qs = new URLSearchParams({ city: rmState.city, q: rmState.q, sort: rmState.sort });
+  const items = await api(`/api/listings?${qs}`);
   grid.innerHTML = "";
   empty.classList.toggle("hidden", items.length > 0);
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "card";
     const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
-    card.innerHTML = `<div class="title">${rtype} — ${esc(item.city)}</div>
-      <div class="price">${esc(item.price)}</div>
-      <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>`;
+    card.innerHTML = `
+      <div class="img-wrap"><span class="placeholder-icon">🏠</span><span class="price-badge">${esc(item.price)}</span></div>
+      <div class="body">
+        <div class="title">${rtype} — ${esc(item.city)}</div>
+        <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>
+      </div>`;
     card.onclick = () => openRmDetail(item.id);
     grid.appendChild(card);
   }
@@ -361,9 +447,12 @@ async function loadTravelGrid() {
   for (const p of posts) {
     const card = document.createElement("div");
     card.className = "card";
-    card.innerHTML = `<div class="title">${esc(META.routes[p.route] || p.route)}</div>
-      <div class="price">${esc(p.date)}</div>
-      <div class="meta">📍 ${esc(p.city)}</div>`;
+    card.innerHTML = `
+      <div class="img-wrap"><span class="placeholder-icon">🧳</span><span class="price-badge">${esc(p.date)}</span></div>
+      <div class="body">
+        <div class="title">${esc(META.routes[p.route] || p.route)}</div>
+        <div class="meta">📍 ${esc(p.city)}</div>
+      </div>`;
     card.onclick = () => openTravelDetail(p.id);
     grid.appendChild(card);
   }
@@ -478,6 +567,7 @@ function showDetail(html) {
 
 const VIEWS = {
   home: viewHome,
+  more: viewMore,
   contentCategory: viewContentCategory,
   contentPage: viewContentPage,
   avito: viewAvito,
@@ -492,4 +582,5 @@ const VIEWS = {
 (async () => {
   await loadMeta();
   go("home", {}, "KADER DZ 🇷🇺");
+  setActiveNav("home");
 })();
