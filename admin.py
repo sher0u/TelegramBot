@@ -22,7 +22,10 @@ from telegram.ext import (
     filters,
 )
 
-from keyboards import admin_panel_kb, admin_back_kb, broadcast_type_kb, broadcast_confirm_kb
+from keyboards import (
+    admin_panel_kb, admin_back_kb, broadcast_type_kb,
+    broadcast_groups_kb, broadcast_confirm_kb,
+)
 from user_storage import get_stats, get_user_ids
 
 logger = logging.getLogger(__name__)
@@ -36,10 +39,12 @@ ADMINS: list[int] = (
     else [872846255, 6698671368]
 )
 
+GROUP_IDS: list[int] = [int(x.strip()) for x in os.getenv("GROUP_IDS", "").split(",") if x.strip()]
+
 # ── Conversation states ───────────────────────────────────────────────────────
 
-_ADMIN_PASS = 0                      # admin auth
-_BC_TYPE, _BC_MSG, _BC_CONFIRM = range(1, 4)  # broadcast
+_ADMIN_PASS = 0                                       # admin auth
+_BC_TYPE, _BC_MSG, _BC_GROUPS, _BC_CONFIRM = range(1, 5)  # broadcast
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -200,27 +205,54 @@ async def bc_type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def bc_msg_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    msg = update.message.text
-    context.user_data["bc_message"] = msg
+    context.user_data["bc_message"] = update.message.text
+    if GROUP_IDS:
+        await update.message.reply_text(
+            f"📢 *هل تريد إرسال هذه الرسالة إلى المجموعات أيضًا؟* \\(`{len(GROUP_IDS)}` مجموعة\\)",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=broadcast_groups_kb(),
+        )
+        return _BC_GROUPS
+    context.user_data["bc_send_groups"] = False
+    return await _show_bc_preview(update.message, context)
+
+
+async def bc_groups_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if query.data == "bc_cancel":
+        await query.edit_message_text("❌ تم إلغاء البث\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        _bc_cleanup(context)
+        return ConversationHandler.END
+    context.user_data["bc_send_groups"] = (query.data == "bc_grp_yes")
+    return await _show_bc_preview(query.message, context, edit=query)
+
+
+async def _show_bc_preview(message, context: ContextTypes.DEFAULT_TYPE, edit=None) -> int:
+    msg = context.user_data.get("bc_message", "")
     mode = context.user_data.get("bc_mode", "plain")
     label = "📣 Markdown" if mode == "markdown" else "📝 نص عادي"
     users = context.application.bot_data.get("users", {})
     total = len(users)
+    send_groups = context.user_data.get("bc_send_groups", False)
+    groups_line = f"📣 المجموعات: `{len(GROUP_IDS)}`\n" if send_groups else ""
     # msg goes into a code block — no MarkdownV2 escaping needed inside ```...```
     preview = (
         f"👀 *معاينة الرسالة*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"النوع: {label}\n"
-        f"المستلمون: `{total}` مستخدم\n\n"
+        f"المستلمون: `{total}` مستخدم\n"
+        f"{groups_line}\n"
         f"📨 *الرسالة:*\n"
         f"```\n{msg}\n```\n\n"
         f"هل تريد الإرسال؟"
     )
-    await update.message.reply_text(
-        preview,
-        parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=broadcast_confirm_kb(),
-    )
+    if edit:
+        await edit.edit_message_text(preview, parse_mode=ParseMode.MARKDOWN_V2,
+                                      reply_markup=broadcast_confirm_kb())
+    else:
+        await message.reply_text(preview, parse_mode=ParseMode.MARKDOWN_V2,
+                                  reply_markup=broadcast_confirm_kb())
     return _BC_CONFIRM
 
 
@@ -232,9 +264,10 @@ async def bc_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         _bc_cleanup(context)
         return ConversationHandler.END
 
-    msg = context.user_data.get("bc_message", "")
-    mode = context.user_data.get("bc_mode", "plain")
-    parse_mode = ParseMode.MARKDOWN if mode == "markdown" else None
+    msg          = context.user_data.get("bc_message", "")
+    mode         = context.user_data.get("bc_mode", "plain")
+    send_groups  = context.user_data.get("bc_send_groups", False)
+    parse_mode   = ParseMode.MARKDOWN if mode == "markdown" else None
 
     users = context.application.bot_data.get("users", {})
     ids = get_user_ids(users)
@@ -263,13 +296,29 @@ async def bc_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
                 failed += 1
                 logger.warning("Broadcast failed for %d: %s", uid, e)
 
+    groups_ok = groups_fail = 0
+    if send_groups:
+        for gid in GROUP_IDS:
+            try:
+                kwargs: dict = {"chat_id": gid, "text": msg}
+                if parse_mode:
+                    kwargs["parse_mode"] = parse_mode
+                    kwargs["disable_web_page_preview"] = True
+                await context.bot.send_message(**kwargs)
+                groups_ok += 1
+            except Exception as e:
+                groups_fail += 1
+                logger.warning("Group broadcast failed for %d: %s", gid, e)
+
+    groups_line = f"📣 *المجموعات:* `{groups_ok}` ناجح، `{groups_fail}` فشل\n" if send_groups else ""
     await status.edit_text(
         "✅ *اكتمل البث\\!*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📨 *ناجح:* `{success}`\n"
         f"🚫 *محظور/غير نشط:* `{blocked}`\n"
         f"⚠️ *فشل:* `{failed}`\n"
-        f"📊 *الإجمالي:* `{total}`",
+        f"📊 *الإجمالي:* `{total}`\n"
+        f"{groups_line}",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
     _bc_cleanup(context)
@@ -285,6 +334,7 @@ async def bc_cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 def _bc_cleanup(context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("bc_message", None)
     context.user_data.pop("bc_mode", None)
+    context.user_data.pop("bc_send_groups", None)
 
 
 # ── Legacy text shortcuts (/stats, /broadcast, /users) ───────────────────────
@@ -390,9 +440,10 @@ def get_admin_handlers() -> list:
         broadcast_conv = ConversationHandler(
             entry_points=[CallbackQueryHandler(bc_start, pattern="^adm_broadcast$")],
             states={
-                _BC_TYPE: [CallbackQueryHandler(bc_type_chosen, pattern="^bc_(plain|markdown|cancel)$")],
-                _BC_MSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, bc_msg_received)],
-                _BC_CONFIRM: [CallbackQueryHandler(bc_confirmed, pattern="^bc_(confirm|cancel)$")],
+                _BC_TYPE:   [CallbackQueryHandler(bc_type_chosen, pattern="^bc_(plain|markdown|cancel)$")],
+                _BC_MSG:    [MessageHandler(filters.TEXT & ~filters.COMMAND, bc_msg_received)],
+                _BC_GROUPS: [CallbackQueryHandler(bc_groups_chosen, pattern="^bc_(grp_yes|grp_no|cancel)$")],
+                _BC_CONFIRM:[CallbackQueryHandler(bc_confirmed, pattern="^bc_(confirm|cancel)$")],
             },
             fallbacks=[CommandHandler("cancel", bc_cancel_cmd)],
             per_user=True,

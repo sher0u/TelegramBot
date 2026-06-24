@@ -211,6 +211,14 @@ def broadcast_type_kb() -> InlineKeyboardMarkup:
     ])
 
 
+def broadcast_groups_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ نعم، أرسل للمجموعات أيضًا", callback_data="bc_grp_yes")],
+        [InlineKeyboardButton("➡️ لا، للمستخدمين فقط",        callback_data="bc_grp_no")],
+        [InlineKeyboardButton("❌ إلغاء",                      callback_data="bc_cancel")],
+    ])
+
+
 def broadcast_confirm_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ إرسال للجميع", callback_data="bc_confirm"),
