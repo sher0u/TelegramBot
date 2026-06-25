@@ -308,7 +308,7 @@ async function loadAvitoGrid() {
 }
 
 function verifiedBadge(record) {
-  return record.seller_verified ? ' <span title="معلن موثّق">☑️</span>' : "";
+  return record.seller_verified ? ' <span title="معلن موثّق" style="color:var(--success); font-weight:700;">✅ موثّق</span>' : "";
 }
 
 async function openAvitoDetail(id) {

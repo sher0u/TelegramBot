@@ -151,7 +151,7 @@ async def website_cmd(update, context):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _verified_badge(user_id: int) -> str:
-    return " ☑️" if is_verified(load_users(), user_id) else ""
+    return " ✅ موثّق" if is_verified(load_users(), user_id) else ""
 
 
 def _fmt_item(item: dict, num: int, total: int) -> str:
