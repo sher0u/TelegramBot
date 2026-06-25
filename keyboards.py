@@ -610,18 +610,18 @@ def roommate_del_confirm_kb(listing_id: str) -> InlineKeyboardMarkup:
 
 def travel_main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ أضف رحلتك",                   callback_data="trv_post_choose")],
-        [InlineKeyboardButton("🇷🇺➡️🇩🇿 من روسيا إلى الجزائر", callback_data="trv_post_msk_alg")],
-        [InlineKeyboardButton("🇩🇿➡️🇷🇺 من الجزائر إلى روسيا", callback_data="trv_post_alg_msk")],
-        [InlineKeyboardButton("📋 رحلاتي",                      callback_data="trv_mylist")],
-        [InlineKeyboardButton("🔙 القائمة الرئيسية",           callback_data="Start")],
+        [InlineKeyboardButton("➕ أضف رحلتك",                       callback_data="trv_post_choose")],
+        [InlineKeyboardButton("🇷🇺 ➡️ 🇩🇿   من روسيا إلى الجزائر", callback_data="trv_post_msk_alg")],
+        [InlineKeyboardButton("🇩🇿 ➡️ 🇷🇺   من الجزائر إلى روسيا", callback_data="trv_post_alg_msk")],
+        [InlineKeyboardButton("📋 رحلاتي",                          callback_data="trv_mylist")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية",               callback_data="Start")],
     ])
 
 
 def trv_direction_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇩🇿➡️🇷🇺 من الجزائر إلى روسيا", callback_data="trv_dir_alg_msk")],
-        [InlineKeyboardButton("🇷🇺➡️🇩🇿 من روسيا إلى الجزائر", callback_data="trv_dir_msk_alg")],
+        [InlineKeyboardButton("🇩🇿 ➡️ 🇷🇺   من الجزائر إلى روسيا", callback_data="trv_dir_alg_msk")],
+        [InlineKeyboardButton("🇷🇺 ➡️ 🇩🇿   من روسيا إلى الجزائر", callback_data="trv_dir_msk_alg")],
         [InlineKeyboardButton("❌ إلغاء", callback_data="trv_cancel_post")],
     ])
 

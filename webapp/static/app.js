@@ -533,18 +533,19 @@ async function loadTravelGrid() {
   grid.innerHTML = "";
   empty.classList.toggle("hidden", posts.length > 0);
   if (!posts.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد رحلات بعد`;
+  const ROUTE_SHORT = { alg_to_msk: "الجزائر ⟸ روسيا", msk_to_alg: "روسيا ⟸ الجزائر" };
   for (const p of posts) {
     const card = document.createElement("div");
     card.className = "card";
-    const dirEmoji = p.route === "alg_to_msk" ? "🇩🇿➡️🇷🇺" : "🇷🇺➡️🇩🇿";
+    const dirEmoji = p.route === "alg_to_msk" ? "🇩🇿 ➡️ 🇷🇺" : "🇷🇺 ➡️ 🇩🇿";
     card.innerHTML = `
       <div class="img-wrap">
         <span class="placeholder-icon">🧳</span>
-        <span class="cat-badge" style="width:auto; padding:3px 7px; font-size:11px;">${dirEmoji}</span>
+        <span class="cat-badge" style="width:auto; padding:3px 8px; font-size:12px;">${dirEmoji}</span>
         <span class="price-badge">📅 ${esc(p.date)}</span>
       </div>
       <div class="body">
-        <div class="title">${esc(META.routes[p.route] || p.route)}</div>
+        <div class="title">${ROUTE_SHORT[p.route] || esc(p.route)}</div>
         <div class="meta">📍 ${esc(p.city)}</div>
       </div>`;
     card.onclick = () => openTravelDetail(p.id);
@@ -567,11 +568,11 @@ function viewTravelPost() {
   elApp.innerHTML = `
     <div class="form-group"><label>الاتجاه</label>
       <div class="option-row">
-        <div class="option-pill" data-r="alg_to_msk">🇩🇿➡️🇷🇺 الجزائر→روسيا</div>
-        <div class="option-pill" data-r="msk_to_alg">🇷🇺➡️🇩🇿 روسيا→الجزائر</div>
+        <div class="option-pill" data-r="alg_to_msk">🇩🇿 ➡️ 🇷🇺  الجزائر إلى روسيا</div>
+        <div class="option-pill" data-r="msk_to_alg">🇷🇺 ➡️ 🇩🇿  روسيا إلى الجزائر</div>
       </div>
     </div>
-    <div class="form-group"><label>تاريخ السفر</label><input id="f_date" placeholder="مثال: 15/09/2026"></div>
+    <div class="form-group"><label>تاريخ السفر</label><input type="date" id="f_date"></div>
     <div class="form-group"><label>معلومات الطيران (اختياري)</label><input id="f_flight" placeholder="مثال: Aeroflot SU1234"></div>
     <div class="form-group"><label>تفاصيل المغادرة/الوصول</label><input id="f_city" placeholder="مثال: مطار الجزائر — شيريميتيفو"></div>
     <div class="form-group"><label>وسيلة التواصل</label><input id="f_contact" placeholder="مثال: @username"></div>

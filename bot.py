@@ -1574,7 +1574,11 @@ async def trv_route_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def trv_get_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["trv_date"] = update.message.text.strip()
+    date_str = update.message.text.strip()
+    if not TRV.parse_date(date_str):
+        await _conv_reply(update, context, C.TRV_POST_DATE_RETRY, KB.trv_cancel_kb())
+        return _TRV_DATE
+    context.user_data["trv_date"] = date_str
     await _conv_reply(update, context, C.TRV_POST_FLIGHT, KB.trv_skip_flight_kb())
     return _TRV_FLIGHT
 
@@ -1645,6 +1649,22 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
+async def _travel_maintenance_loop() -> None:
+    """Runs once a day in the background — archives expired travel posts and
+    permanently deletes ones past the 6-month retention window."""
+    while True:
+        try:
+            TRV.run_maintenance()
+        except Exception as e:
+            logger.error("Travel maintenance failed: %s", e)
+        await asyncio.sleep(86400)
+
+
+async def _post_init(app) -> None:
+    TRV.run_maintenance()
+    asyncio.create_task(_travel_maintenance_loop())
+
+
 def main() -> None:
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is not set.")
@@ -1656,7 +1676,7 @@ def main() -> None:
         read_timeout=60, write_timeout=60, connect_timeout=30,
         proxy=proxy,
     )
-    app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).request(request).post_init(_post_init).build()
     app.bot_data["users"] = load_users()
 
     # ── Inquiry ConversationHandler ───────────────────────────────────────────

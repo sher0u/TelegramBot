@@ -7,9 +7,22 @@ _DIR        = os.path.dirname(__file__)
 TRAVEL_FILE = os.path.join(_DIR, "travel.json")
 
 ROUTES = {
-    "alg_to_msk": "🇩🇿➡️🇷🇺 من الجزائر إلى روسيا",
-    "msk_to_alg": "🇷🇺➡️🇩🇿 من روسيا إلى الجزائر",
+    "alg_to_msk": "🇩🇿 ➡️ 🇷🇺   من الجزائر إلى روسيا",
+    "msk_to_alg": "🇷🇺 ➡️ 🇩🇿   من روسيا إلى الجزائر",
 }
+
+ARCHIVE_AFTER_DAYS = 180  # keep an expired post for 6 months before permanent deletion
+
+
+def parse_date(date_str: str) -> datetime | None:
+    """Parse a travel date entered as DD/MM/YYYY, DD.MM.YYYY, or ISO YYYY-MM-DD."""
+    date_str = (date_str or "").strip()
+    for fmt in ("%d/%m/%Y", "%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -79,3 +92,35 @@ def approve_post(post_id: str) -> None:
 
 def delete_post(post_id: str) -> None:
     save_all_posts([p for p in get_all_posts() if p["id"] != post_id])
+
+
+def run_maintenance() -> None:
+    """Archive approved posts whose travel date has passed, and permanently
+    delete posts that have been archived for longer than ARCHIVE_AFTER_DAYS."""
+    posts = get_all_posts()
+    now = datetime.now()
+    kept = []
+    changed = False
+
+    for p in posts:
+        if p["status"] == "approved":
+            d = parse_date(p.get("date", ""))
+            if d and d.date() < now.date():
+                p["status"] = "archived"
+                p["archived_at"] = now.isoformat()
+                changed = True
+
+        if p["status"] == "archived":
+            archived_at = p.get("archived_at")
+            if archived_at:
+                try:
+                    if datetime.fromisoformat(archived_at) + timedelta(days=ARCHIVE_AFTER_DAYS) < now:
+                        changed = True
+                        continue  # drop — past retention window
+                except ValueError:
+                    pass
+
+        kept.append(p)
+
+    if changed:
+        save_all_posts(kept)
