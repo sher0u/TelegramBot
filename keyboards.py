@@ -186,10 +186,11 @@ def inq_target_kb() -> InlineKeyboardMarkup:
 
 
 def admin_approve_inq_kb(inq_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ موافقة", callback_data=f"inq_app_{inq_id}"),
-        InlineKeyboardButton("❌ رفض",    callback_data=f"inq_rej_{inq_id}"),
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ قبول ونشر في المجموعات", callback_data=f"inq_app_{inq_id}")],
+        [InlineKeyboardButton("✅ قبول فقط",                callback_data=f"inq_apo_{inq_id}"),
+         InlineKeyboardButton("❌ رفض",                     callback_data=f"inq_rej_{inq_id}")],
+    ])
 
 
 def inq_cancel_kb() -> InlineKeyboardMarkup:
@@ -254,10 +255,11 @@ def admin_back_kb() -> InlineKeyboardMarkup:
 
 def admin_approve_mkt_kb(item_id: str) -> InlineKeyboardMarkup:
     """Sent to admin when a new marketplace item arrives — approve or reject."""
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ موافقة",    callback_data=f"mkt_app_{item_id}"),
-        InlineKeyboardButton("❌ رفض",       callback_data=f"mkt_rej_{item_id}"),
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ قبول ونشر في المجموعات", callback_data=f"mkt_app_{item_id}")],
+        [InlineKeyboardButton("✅ قبول فقط",                callback_data=f"mkt_apo_{item_id}"),
+         InlineKeyboardButton("❌ رفض",                     callback_data=f"mkt_rej_{item_id}")],
+    ])
 
 
 def admin_active_mkt_kb(item_id: str) -> InlineKeyboardMarkup:
@@ -269,10 +271,11 @@ def admin_active_mkt_kb(item_id: str) -> InlineKeyboardMarkup:
 
 def admin_approve_rm_kb(listing_id: str) -> InlineKeyboardMarkup:
     """Sent to admin when a new roommate listing arrives."""
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ موافقة",    callback_data=f"rm_app_{listing_id}"),
-        InlineKeyboardButton("❌ رفض",       callback_data=f"rm_rej_{listing_id}"),
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ قبول ونشر في المجموعات", callback_data=f"rm_app_{listing_id}")],
+        [InlineKeyboardButton("✅ قبول فقط",                callback_data=f"rm_apo_{listing_id}"),
+         InlineKeyboardButton("❌ رفض",                     callback_data=f"rm_rej_{listing_id}")],
+    ])
 
 
 def admin_active_rm_kb(listing_id: str) -> InlineKeyboardMarkup:
@@ -664,10 +667,11 @@ def trv_del_confirm_kb(post_id: str) -> InlineKeyboardMarkup:
 
 
 def admin_approve_trv_kb(post_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ موافقة", callback_data=f"trv_app_{post_id}"),
-        InlineKeyboardButton("❌ رفض",    callback_data=f"trv_rej_{post_id}"),
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ قبول ونشر في المجموعات", callback_data=f"trv_app_{post_id}")],
+        [InlineKeyboardButton("✅ قبول فقط",                callback_data=f"trv_apo_{post_id}"),
+         InlineKeyboardButton("❌ رفض",                     callback_data=f"trv_rej_{post_id}")],
+    ])
 
 
 def admin_active_trv_kb(post_id: str) -> InlineKeyboardMarkup:

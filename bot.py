@@ -671,6 +671,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
 
+    elif d.startswith("mkt_apo_"):
+        item_id = d[len("mkt_apo_"):]
+        item    = MKT.get_item_by_id(item_id)
+        if item:
+            MKT.approve_item(item_id)
+            await query.edit_message_reply_markup(reply_markup=KB.admin_active_mkt_kb(item_id))
+            try:
+                await context.bot.send_message(
+                    chat_id=item["user_id"], text=C.MKT_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.avito_main_kb()
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
+
     elif d.startswith("mkt_rej_"):
         item_id = d[len("mkt_rej_"):]
         item    = MKT.get_item_by_id(item_id)
@@ -1013,6 +1029,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
 
+    elif d.startswith("rm_apo_"):
+        lid = d[len("rm_apo_"):]
+        lst = MKT.get_listing_by_id(lid)
+        if lst:
+            MKT.approve_listing(lid)
+            await query.edit_message_reply_markup(reply_markup=KB.admin_active_rm_kb(lid))
+            try:
+                await context.bot.send_message(
+                    chat_id=lst["user_id"], text=C.RM_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.roommate_main_kb()
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الإعلان غير موجود أو تم حذفه", show_alert=True)
+
     elif d.startswith("rm_rej_"):
         lid = d[len("rm_rej_"):]
         lst = MKT.get_listing_by_id(lid)
@@ -1164,6 +1196,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         else:
             await query.answer("الرحلة غير موجودة أو تم حذفها", show_alert=True)
 
+    elif d.startswith("trv_apo_"):
+        post_id = d[len("trv_apo_"):]
+        post    = TRV.get_post_by_id(post_id)
+        if post:
+            TRV.approve_post(post_id)
+            await query.edit_message_reply_markup(reply_markup=KB.admin_active_trv_kb(post_id))
+            try:
+                await context.bot.send_message(
+                    chat_id=post["user_id"], text=C.TRV_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.travel_main_kb()
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الرحلة غير موجودة أو تم حذفها", show_alert=True)
+
     elif d.startswith("trv_rej_"):
         post_id = d[len("trv_rej_"):]
         post    = TRV.get_post_by_id(post_id)
@@ -1201,6 +1249,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 f"💬 *التفاصيل:* {_esc(item['notes'])}"
             )
             await _post_to_groups(context, group_msg, contact_user_id=item["user_id"])
+        else:
+            await query.answer("الاستفسار غير موجود أو تم حذفه", show_alert=True)
+
+    elif d.startswith("inq_apo_"):
+        inq_id = d[len("inq_apo_"):]
+        item   = INQS.get_by_id(inq_id)
+        if item:
+            INQS.approve_inquiry(inq_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=item["user_id"], text=C.INQ_APPROVED_NOTIFY,
+                    parse_mode=MD2, reply_markup=KB.back_to_main_kb()
+                )
+            except Exception:
+                pass
         else:
             await query.answer("الاستفسار غير موجود أو تم حذفه", show_alert=True)
 

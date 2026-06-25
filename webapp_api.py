@@ -559,6 +559,7 @@ async def _notify_groups(text: str, contact_user_id: int | None = None, photo_id
 class ApproveBody(BaseModel):
     kind: str  # item | listing | travel | inquiry
     id: str
+    publish: bool = True  # also post to groups + broadcast teaser, vs. accept-only
 
 
 @app.post("/api/admin/approve")
@@ -570,39 +571,43 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
             raise HTTPException(404, "not found")
         MKT.approve_item(body.id)
         await _tg_send_message(item["user_id"], C.MKT_APPROVED_NOTIFY)
-        cat = MKT.CATEGORIES.get(item["category"], item["category"])
-        text = (f"🛒 *Avito Algeria* — {_esc(cat)}\n📝 *{_esc(item['title'])}*\n"
-                f"💰 {_esc(item['price'])}\n📍 {_esc(item['city'])}\n💬 {_esc(item['description'])}")
-        await _notify_groups(text, item["user_id"], photo_id=item.get("photo_id"))
+        if body.publish:
+            cat = MKT.CATEGORIES.get(item["category"], item["category"])
+            text = (f"🛒 *Avito Algeria* — {_esc(cat)}\n📝 *{_esc(item['title'])}*\n"
+                    f"💰 {_esc(item['price'])}\n📍 {_esc(item['city'])}\n💬 {_esc(item['description'])}")
+            await _notify_groups(text, item["user_id"], photo_id=item.get("photo_id"))
     elif body.kind == "listing":
         lst = MKT.get_listing_by_id(body.id)
         if not lst:
             raise HTTPException(404, "not found")
         MKT.approve_listing(body.id)
         await _tg_send_message(lst["user_id"], C.RM_APPROVED_NOTIFY)
-        text = (f"🏠 *إيجاد شريك سكن*\n📍 {_esc(lst['city'])}\n💰 {_esc(lst['price'])}\n"
-                f"💬 {_esc(lst['description'])}")
-        photos = lst.get("photos") or []
-        await _notify_groups(text, lst["user_id"], photo_id=(photos[0] if photos else None))
+        if body.publish:
+            text = (f"🏠 *إيجاد شريك سكن*\n📍 {_esc(lst['city'])}\n💰 {_esc(lst['price'])}\n"
+                    f"💬 {_esc(lst['description'])}")
+            photos = lst.get("photos") or []
+            await _notify_groups(text, lst["user_id"], photo_id=(photos[0] if photos else None))
     elif body.kind == "travel":
         post = TRV.get_post_by_id(body.id)
         if not post:
             raise HTTPException(404, "not found")
         TRV.approve_post(body.id)
         await _tg_send_message(post["user_id"], C.TRV_APPROVED_NOTIFY)
-        route = _esc(TRV.ROUTES.get(post["route"], post["route"]))
-        text = (f"🧳 *هبطلي ولا طلعلي معاك*\n🧭 {route}\n📅 {_esc(post['date'])}\n"
-                f"📍 {_esc(post['city'])}\n📞 {_esc(post['contact'])}")
-        await _notify_groups(text, post["user_id"])
+        if body.publish:
+            route = _esc(TRV.ROUTES.get(post["route"], post["route"]))
+            text = (f"🧳 *هبطلي ولا طلعلي معاك*\n🧭 {route}\n📅 {_esc(post['date'])}\n"
+                    f"📍 {_esc(post['city'])}\n📞 {_esc(post['contact'])}")
+            await _notify_groups(text, post["user_id"])
     elif body.kind == "inquiry":
         item = INQS.get_by_id(body.id)
         if not item:
             raise HTTPException(404, "not found")
         INQS.approve_inquiry(body.id)
         await _tg_send_message(item["user_id"], C.INQ_APPROVED_NOTIFY)
-        text = (f"👥 *استفسار من الجالية*\n📛 {_esc(item['name'])}\n🎯 {_esc(item['service'])}\n"
-                f"💬 {_esc(item['notes'])}")
-        await _notify_groups(text, item["user_id"])
+        if body.publish:
+            text = (f"👥 *استفسار من الجالية*\n📛 {_esc(item['name'])}\n🎯 {_esc(item['service'])}\n"
+                    f"💬 {_esc(item['notes'])}")
+            await _notify_groups(text, item["user_id"])
     else:
         raise HTTPException(400, "unknown kind")
     return {"ok": True}

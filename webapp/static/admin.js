@@ -91,7 +91,8 @@ async function viewPending() {
       card.className = "pending-card";
       card.innerHTML = pendingCardBody(kind, it);
       list.appendChild(card);
-      card.querySelector(".approve").onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card);
+      card.querySelector(".approve-publish").onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card, true);
+      card.querySelector(".approve-only").onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card, false);
       card.querySelector(".reject").onclick = () => act("reject", KIND_SINGULAR[kind], it.id, card);
     }
   }
@@ -119,15 +120,17 @@ function pendingCardBody(kind, it) {
   }
   const poster = it.username ? `@${esc(it.username)}` : esc(it.first_name || "—");
   return `${lines}<div class="meta-line"><b>المرسل:</b> ${poster}</div>
+    <button class="btn approve-publish" style="background:var(--success)">✅ قبول ونشر في المجموعات</button>
     <div class="btn-row">
-      <button class="btn approve" style="background:var(--success)">✅ موافقة</button>
+      <button class="btn approve-only secondary">✅ قبول فقط</button>
       <button class="btn reject danger">❌ رفض</button>
     </div>`;
 }
 
-async function act(action, kind, id, card) {
+async function act(action, kind, id, card, publish) {
   try {
-    await api(`/api/admin/${action}`, { method: "POST", body: JSON.stringify({ kind, id }) });
+    const body = action === "approve" ? { kind, id, publish } : { kind, id };
+    await api(`/api/admin/${action}`, { method: "POST", body: JSON.stringify(body) });
     toast(action === "approve" ? "✅ تمت الموافقة" : "❌ تم الرفض");
     card.remove();
   } catch (e) { toast("⚠️ " + e.message); }
