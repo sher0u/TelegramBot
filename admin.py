@@ -27,7 +27,7 @@ from keyboards import (
     admin_panel_kb, admin_back_kb, broadcast_type_kb,
     broadcast_destinations_kb, broadcast_confirm_kb,
 )
-from user_storage import get_stats, get_user_ids
+from user_storage import get_stats, get_user_ids, is_verified, load_users, set_verified
 
 logger = logging.getLogger(__name__)
 
@@ -458,6 +458,28 @@ async def users_export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             pass
 
 
+async def verify_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update.effective_user.id):
+        return
+    if not context.args or not context.args[0].lstrip("-").isdigit():
+        await update.message.reply_text(
+            "ℹ️ الاستخدام: `/verify <user_id>`",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+    target_id = int(context.args[0])
+    users = context.application.bot_data.get("users", {})
+    if str(target_id) not in users:
+        await update.message.reply_text("❌ هذا المستخدم غير مسجل في البوت\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        return
+    new_state = not is_verified(users, target_id)
+    set_verified(users, target_id, new_state)
+    await update.message.reply_text(
+        f"☑️ تم توثيق المستخدم `{target_id}`\\." if new_state else f"تم إلغاء توثيق المستخدم `{target_id}`\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
 # ── Handler registration ──────────────────────────────────────────────────────
 
 def get_admin_handlers() -> list:
@@ -495,4 +517,5 @@ def get_admin_handlers() -> list:
         CommandHandler("broadcast", broadcast_cmd),
         CommandHandler("announce", broadcast_cmd),
         CommandHandler("users", users_export_cmd),
+        CommandHandler("verify", verify_cmd),
     ]

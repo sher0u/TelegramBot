@@ -66,6 +66,38 @@ def is_teaser_snoozed(users: dict, user_id: int) -> bool:
         return False
 
 
+def set_verified(users: dict, user_id: int, verified: bool) -> None:
+    key = str(user_id)
+    if key in users:
+        users[key]["verified"] = verified
+        save_users(users)
+
+
+def is_verified(users: dict, user_id: int) -> bool:
+    data = users.get(str(user_id))
+    return bool(data and data.get("verified"))
+
+
+def search_users(users: dict, query: str) -> list[dict]:
+    """Search by user ID, username, or name (case-insensitive substring match)."""
+    q = (query or "").strip().lower().lstrip("@")
+    if not q:
+        return []
+    results = []
+    for uid, data in users.items():
+        name     = (data.get("name") or "").lower()
+        username = (data.get("username") or "").lower()
+        if q in uid or q in name or q in username:
+            results.append({
+                "user_id":  int(uid),
+                "name":     data.get("name"),
+                "username": data.get("username"),
+                "joined":   data.get("joined"),
+                "verified": bool(data.get("verified")),
+            })
+    return results[:30]
+
+
 def get_stats(users: dict) -> dict:
     now = datetime.now()
     today = now.date()

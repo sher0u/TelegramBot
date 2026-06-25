@@ -237,12 +237,17 @@ def list_items(category: str | None = None, q: str | None = None, sort: str | No
     return items
 
 
+def _with_verified(record: dict) -> dict:
+    users = US.load_users()
+    return {**record, "seller_verified": US.is_verified(users, record["user_id"])}
+
+
 @app.get("/api/items/{item_id}")
 def get_item(item_id: str):
     item = MKT.get_item_by_id(item_id)
     if not item or item["status"] != "approved":
         raise HTTPException(404, "not found")
-    return item
+    return _with_verified(item)
 
 
 @app.get("/api/listings")
@@ -260,7 +265,7 @@ def get_listing(listing_id: str):
     lst = MKT.get_listing_by_id(listing_id)
     if not lst or lst["status"] != "approved":
         raise HTTPException(404, "not found")
-    return lst
+    return _with_verified(lst)
 
 
 @app.get("/api/travel")
@@ -273,7 +278,7 @@ def get_travel(post_id: str):
     post = TRV.get_post_by_id(post_id)
     if not post or post["status"] != "approved":
         raise HTTPException(404, "not found")
-    return post
+    return _with_verified(post)
 
 
 @app.get("/api/photo/{file_id}")
@@ -530,6 +535,38 @@ def admin_stats(x_telegram_init_data: str = Header(default="")):
         "approved_listings": len(MKT.get_approved_listings()),
         "approved_travel": len(TRV.get_approved_posts()),
     }
+
+
+def _user_post_count(user_id: int) -> int:
+    n = len([i for i in MKT.get_all_items() if i["user_id"] == user_id and i["status"] == "approved"])
+    n += len([l for l in MKT.get_all_listings() if l["user_id"] == user_id and l["status"] == "approved"])
+    n += len([p for p in TRV.get_all_posts() if p["user_id"] == user_id and p["status"] == "approved"])
+    return n
+
+
+@app.get("/api/admin/users")
+def admin_search_users(q: str = "", x_telegram_init_data: str = Header(default="")):
+    _current_admin(x_telegram_init_data)
+    users = US.load_users()
+    results = US.search_users(users, q)
+    for r in results:
+        r["post_count"] = _user_post_count(r["user_id"])
+    return results
+
+
+class VerifyBody(BaseModel):
+    user_id: int
+    verified: bool
+
+
+@app.post("/api/admin/verify")
+def admin_verify_user(body: VerifyBody, x_telegram_init_data: str = Header(default="")):
+    _current_admin(x_telegram_init_data)
+    users = US.load_users()
+    if str(body.user_id) not in users:
+        raise HTTPException(404, "user not found")
+    US.set_verified(users, body.user_id, body.verified)
+    return {"ok": True}
 
 
 @app.get("/api/admin/pending")

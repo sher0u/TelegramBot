@@ -26,7 +26,7 @@ import marketplace_storage as MKT
 import travel_storage as TRV
 from admin import get_admin_handlers
 from user_storage import (
-    add_user, get_user_ids, is_teaser_snoozed, load_users, save_users, snooze_teasers,
+    add_user, get_user_ids, is_teaser_snoozed, is_verified, load_users, save_users, snooze_teasers,
 )
 
 load_dotenv()
@@ -150,13 +150,18 @@ async def website_cmd(update, context):
 # MARKETPLACE HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _verified_badge(user_id: int) -> str:
+    return " ☑️" if is_verified(load_users(), user_id) else ""
+
+
 def _fmt_item(item: dict, num: int, total: int) -> str:
     cat_label  = MKT.CATEGORIES.get(item["category"], item["category"])
     photo_line = "📷 _يوجد صورة_\n" if item.get("photo_id") else ""
+    badge      = _verified_badge(item["user_id"])
     return (
         f"🛒 *Avito Algeria* — {_esc(cat_label)}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📝 *{_esc(item['title'])}*\n\n"
+        f"📝 *{_esc(item['title'])}*{badge}\n\n"
         f"💰 *السعر:* {_esc(item['price'])}\n"
         f"📍 *المدينة:* {_esc(item['city'])}\n"
         f"💬 *الوصف:* {_esc(item['description'])}\n"
@@ -170,8 +175,9 @@ def _fmt_listing(lst: dict, num: int, total: int) -> str:
     rtype  = MKT.ROOMMATE_TYPES.get(lst["type"], lst["type"])
     rroom  = MKT.ROOM_TYPES.get(lst.get("room_type", ""), "")
     metro  = MKT.METRO_DISTANCES.get(lst.get("metro_distance", ""), "")
+    badge  = _verified_badge(lst["user_id"])
     return (
-        "🏠 *إيجاد شريك سكن*\n"
+        f"🏠 *إيجاد شريك سكن*{badge}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🔖 *النوع:* {_esc(rtype)}\n"
         f"🛏️ *الوحدة:* {_esc(rroom)}\n"
@@ -336,8 +342,9 @@ def _broadcast_teaser_bg(context, teaser: str, view_callback: str) -> None:
 
 def _fmt_travel(post: dict) -> str:
     route = TRV.ROUTES.get(post["route"], post["route"])
+    badge = _verified_badge(post["user_id"])
     return (
-        "🧳 *هبطلي ولا طلعلي معاك*\n"
+        f"🧳 *هبطلي ولا طلعلي معاك*{badge}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🧭 *الاتجاه:* {_esc(route)}\n"
         f"📅 *التاريخ:* {_esc(post['date'])}\n"

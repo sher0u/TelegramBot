@@ -305,6 +305,10 @@ async function loadAvitoGrid() {
   }
 }
 
+function verifiedBadge(record) {
+  return record.seller_verified ? ' <span title="معلن موثّق">☑️</span>' : "";
+}
+
 async function openAvitoDetail(id) {
   const item = await api(`/api/items/${id}`);
   const seller = item.username ? `@${esc(item.username)}` : esc(item.first_name);
@@ -317,7 +321,7 @@ async function openAvitoDetail(id) {
     <div class="detail-row"><b>السعر:</b> ${esc(item.price)}</div>
     <div class="detail-row"><b>المدينة:</b> ${esc(item.city)}</div>
     <div class="detail-row"><b>الوصف:</b> ${esc(item.description)}</div>
-    <div class="detail-row"><b>البائع:</b> ${seller}</div>
+    <div class="detail-row"><b>البائع:</b> ${seller}${verifiedBadge(item)}</div>
     ${contact}`);
 }
 
@@ -446,7 +450,7 @@ async function openRmDetail(id) {
     <div class="detail-row"><b>السعر:</b> ${esc(item.price)}</div>
     <div class="detail-row"><b>المترو:</b> ${item.metro_distance === "near" ? "قريب" : "بعيد"}</div>
     <div class="detail-row"><b>التفاصيل:</b> ${esc(item.description)}</div>
-    <div class="detail-row"><b>المُعلن:</b> ${poster}</div>
+    <div class="detail-row"><b>المُعلن:</b> ${poster}${verifiedBadge(item)}</div>
     ${contact}`);
 }
 
@@ -560,7 +564,7 @@ async function openTravelDetail(id) {
     <div class="detail-row"><b>التاريخ:</b> ${esc(p.date)}</div>
     <div class="detail-row"><b>الطيران:</b> ${esc(p.flight)}</div>
     <div class="detail-row"><b>التفاصيل:</b> ${esc(p.city)}</div>
-    <div class="detail-row"><b>التواصل:</b> ${esc(p.contact)}</div>
+    <div class="detail-row"><b>التواصل:</b> ${esc(p.contact)}${verifiedBadge(p)}</div>
     <div class="detail-row"><b>ملاحظة:</b> ${esc(p.note)}</div>`);
 }
 

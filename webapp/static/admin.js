@@ -53,9 +53,11 @@ async function viewDashboard() {
   elApp.innerHTML = `<div id="stats"></div>
     <div class="section-title">الإجراءات</div>
     <div class="list-item" id="pendingBtn"><span class="title">📋 الطلبات المعلقة</span><span class="chevron">‹</span></div>
-    <div class="list-item" id="broadcastBtn"><span class="title">📤 بث رسالة</span><span class="chevron">‹</span></div>`;
+    <div class="list-item" id="broadcastBtn"><span class="title">📤 بث رسالة</span><span class="chevron">‹</span></div>
+    <div class="list-item" id="usersBtn"><span class="title">☑️ توثيق المستخدمين</span><span class="chevron">‹</span></div>`;
   document.getElementById("pendingBtn").onclick = () => go("pending", {}, "📋 الطلبات المعلقة");
   document.getElementById("broadcastBtn").onclick = () => go("broadcast", {}, "📤 بث رسالة");
+  document.getElementById("usersBtn").onclick = () => go("users", {}, "☑️ توثيق المستخدمين");
   try {
     const s = await api("/api/admin/stats");
     document.getElementById("stats").innerHTML = `
@@ -170,6 +172,57 @@ function viewBroadcast() {
   };
 }
 
-const VIEWS = { dashboard: viewDashboard, pending: viewPending, broadcast: viewBroadcast };
+// ══════════════════════════════════════════════════════════════════════════
+// VERIFIED USERS
+// ══════════════════════════════════════════════════════════════════════════
+
+function viewUsers() {
+  elApp.innerHTML = `
+    <div class="search-bar"><span class="icon">🔍</span><input id="userSearch" placeholder="بحث بالاسم، اليوزر، أو الـID"></div>
+    <div id="usersList"></div>`;
+  document.getElementById("userSearch").oninput = debounce(async (e) => {
+    const q = e.target.value.trim();
+    const list = document.getElementById("usersList");
+    if (!q) { list.innerHTML = ""; return; }
+    const results = await api(`/api/admin/users?q=${encodeURIComponent(q)}`);
+    list.innerHTML = "";
+    if (!results.length) { list.innerHTML = `<div class="empty">😔 لا توجد نتائج</div>`; return; }
+    for (const u of results) {
+      const card = document.createElement("div");
+      card.className = "pending-card";
+      const label = u.username ? `@${esc(u.username)}` : esc(u.name || "—");
+      const joined = u.joined ? new Date(u.joined).toLocaleDateString("ar-DZ") : "—";
+      card.innerHTML = `
+        <div class="meta-line"><b>الاسم:</b> ${esc(u.name || "—")} (${label})</div>
+        <div class="meta-line"><b>ID:</b> ${u.user_id}</div>
+        <div class="meta-line"><b>عضو منذ:</b> ${joined} — <b>إعلانات منشورة:</b> ${u.post_count}</div>
+        <button class="btn verify-toggle"></button>`;
+      renderVerifyButton(card, u);
+      list.appendChild(card);
+    }
+  }, 350);
+}
+
+function renderVerifyButton(card, u) {
+  const btn = card.querySelector(".verify-toggle");
+  btn.className = "btn verify-toggle" + (u.verified ? " danger" : "");
+  if (!u.verified) btn.style.background = "var(--success)";
+  btn.textContent = u.verified ? "❌ إلغاء التوثيق" : "☑️ توثيق هذا المستخدم";
+  btn.onclick = async () => {
+    try {
+      await api("/api/admin/verify", { method: "POST", body: JSON.stringify({ user_id: u.user_id, verified: !u.verified }) });
+      u.verified = !u.verified;
+      toast(u.verified ? "✅ تم التوثيق" : "تم إلغاء التوثيق");
+      renderVerifyButton(card, u);
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+const VIEWS = { dashboard: viewDashboard, pending: viewPending, broadcast: viewBroadcast, users: viewUsers };
 
 go("dashboard", {}, "👨‍💼 لوحة التحكم");
