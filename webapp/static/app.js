@@ -290,6 +290,7 @@ async function loadAvitoGrid() {
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "card";
+    const seller = item.username ? `@${esc(item.username)}` : esc(item.first_name || "—");
     card.innerHTML = `
       <div class="img-wrap">
         ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>📦</span>'">` : `<span class="placeholder-icon">📦</span>`}
@@ -299,6 +300,7 @@ async function loadAvitoGrid() {
       <div class="body">
         <div class="title">${esc(item.title)}</div>
         <div class="meta">📍 ${esc(item.city)}</div>
+        <div class="meta">👤 ${seller}${verifiedBadge(item)}</div>
       </div>`;
     card.onclick = () => openAvitoDetail(item.id);
     grid.appendChild(card);
@@ -420,6 +422,7 @@ async function loadRmGrid() {
     const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
     const roomBadge = item.room_type === "studio" ? "🏠" : "🛏️";
     const photo = (item.photos || [])[0];
+    const poster = item.username ? `@${esc(item.username)}` : esc(item.first_name || "—");
     card.innerHTML = `
       <div class="img-wrap">
         ${photo ? `<img src="/api/photo/${photo}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>🏠</span>'">` : `<span class="placeholder-icon">🏠</span>`}
@@ -429,6 +432,7 @@ async function loadRmGrid() {
       <div class="body">
         <div class="title">${rtype} — ${esc(item.city)}</div>
         <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>
+        <div class="meta">👤 ${poster}${verifiedBadge(item)}</div>
       </div>`;
     card.onclick = () => openRmDetail(item.id);
     grid.appendChild(card);
@@ -551,6 +555,7 @@ async function loadTravelGrid() {
       <div class="body">
         <div class="title">${ROUTE_SHORT[p.route] || esc(p.route)}</div>
         <div class="meta">📍 ${esc(p.city)}</div>
+        <div class="meta">👤 ${p.username ? `@${esc(p.username)}` : esc(p.first_name || "—")}${verifiedBadge(p)}</div>
       </div>`;
     card.onclick = () => openTravelDetail(p.id);
     grid.appendChild(card);

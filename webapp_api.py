@@ -223,6 +223,16 @@ def routes():
     return TRV.ROUTES
 
 
+def _with_verified(record: dict, users: dict | None = None) -> dict:
+    users = users if users is not None else US.load_users()
+    return {**record, "seller_verified": US.is_verified(users, record["user_id"])}
+
+
+def _with_verified_list(records: list) -> list:
+    users = US.load_users()
+    return [_with_verified(r, users) for r in records]
+
+
 @app.get("/api/items")
 def list_items(category: str | None = None, q: str | None = None, sort: str | None = None):
     items = MKT.get_approved_items()
@@ -234,12 +244,7 @@ def list_items(category: str | None = None, q: str | None = None, sort: str | No
                   or ql in i["city"].lower()]
     if sort in ("asc", "desc"):
         items = sorted(items, key=lambda i: MKT._price_key(i["price"]), reverse=(sort == "desc"))
-    return items
-
-
-def _with_verified(record: dict) -> dict:
-    users = US.load_users()
-    return {**record, "seller_verified": US.is_verified(users, record["user_id"])}
+    return _with_verified_list(items)
 
 
 @app.get("/api/items/{item_id}")
@@ -257,7 +262,7 @@ def list_listings(city: str | None = None, metro: str | None = None, sort: str |
     if q:
         ql = q.strip().lower()
         listings = [l for l in listings if ql in l["description"].lower() or ql in l["city"].lower()]
-    return listings
+    return _with_verified_list(listings)
 
 
 @app.get("/api/listings/{listing_id}")
@@ -270,7 +275,7 @@ def get_listing(listing_id: str):
 
 @app.get("/api/travel")
 def list_travel():
-    return TRV.get_approved_posts()
+    return _with_verified_list(TRV.get_approved_posts())
 
 
 @app.get("/api/travel/{post_id}")
