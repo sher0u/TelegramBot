@@ -28,7 +28,7 @@ from keyboards import (
     admin_panel_kb, admin_back_kb, broadcast_type_kb,
     broadcast_destinations_kb, broadcast_confirm_kb,
 )
-from user_storage import get_stats, get_user_ids, is_verified, load_users, set_verified
+from user_storage import get_stats, get_user_ids, is_verified, load_users, search_users, set_verified
 
 logger = logging.getLogger(__name__)
 
@@ -503,7 +503,7 @@ async def verify_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
     await query.message.reply_text(
-        "☑️ *توثيق مستخدم*\n\nأرسل معرّف المستخدم \\(User ID\\)، أو أعد توجيه رسالة منه:",
+        "☑️ *توثيق مستخدم*\n\nأرسل الاسم، اليوزر، معرّف المستخدم \\(ID\\)، أو أعد توجيه رسالة منه:",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
     return _ADMIN_VERIFY
@@ -511,18 +511,39 @@ async def verify_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def verify_receive(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg = update.message
+    users = context.application.bot_data.get("users", {})
     target_id = None
-    if msg.forward_from:
-        target_id = msg.forward_from.id
-    elif msg.text and msg.text.strip().lstrip("-").isdigit():
-        target_id = int(msg.text.strip())
+
+    forward_origin = getattr(msg, "forward_origin", None)
+    sender_user = getattr(forward_origin, "sender_user", None) if forward_origin else None
+    if sender_user:
+        target_id = sender_user.id
+    else:
+        text = (msg.text or "").strip()
+        if text.lstrip("-").isdigit():
+            target_id = int(text)
+        elif text:
+            matches = search_users(users, text)
+            if len(matches) == 1:
+                target_id = matches[0]["user_id"]
+            elif len(matches) > 1:
+                lines = "\n".join(
+                    f"`{m['user_id']}` — {escape_markdown(m['name'] or '—', version=2)}"
+                    + (f" \\(@{escape_markdown(m['username'], version=2)}\\)" if m.get("username") else "")
+                    for m in matches[:10]
+                )
+                await msg.reply_text(
+                    f"🔎 *عدة نتائج مطابقة — أرسل الـID الصحيح من القائمة:*\n\n{lines}",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+                return _ADMIN_VERIFY
+
     if target_id is None:
         await msg.reply_text(
-            "⚠️ أرسل معرّف رقمي صحيح، أو أعد توجيه رسالة من المستخدم\\.",
+            "⚠️ لم أجد مستخدمًا مطابقًا\\. أرسل معرّف رقمي \\(ID\\)، اسم/يوزر، أو أعد توجيه رسالة منه\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
         return _ADMIN_VERIFY
-    users = context.application.bot_data.get("users", {})
     if str(target_id) not in users:
         await msg.reply_text("❌ هذا المستخدم غير مسجل في البوت\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return ConversationHandler.END
