@@ -18,6 +18,13 @@
   --success: oklch(62% 0.15 150);
   --success-soft: oklch(95% 0.03 150);
 
+  /* fixed-light "-soft" tiles (accent-soft/danger-soft/success-soft/c-*-soft)
+     never follow the day/night theme, so text on top of them must stay a
+     fixed dark tone too -- never var(--text)/var(--hint), which Telegram
+     flips to a light color at night and would vanish against them. */
+  --on-soft: oklch(28% 0.02 260);
+  --on-soft-hint: oklch(45% 0.02 260);
+
   /* category tints */
   --c-blue: oklch(55% 0.15 250);      --c-blue-soft: oklch(94% 0.02 250);
   --c-violet: oklch(53% 0.17 300);    --c-violet-soft: oklch(94% 0.025 300);
@@ -1041,7 +1048,7 @@ svg.icon-svg {
 .guarantor-result .row-icon { width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; }
 .guarantor-result .feature-text { display: flex; flex-direction: column; gap: 3px; }
 .guarantor-result .label { font-size: 14.5px; font-weight: 800; color: var(--success); }
-.guarantor-result .feature-count { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.guarantor-result .feature-count { font-size: 12.5px; font-weight: 600; color: var(--on-soft); }
 .guarantor-result a.feature-count { color: var(--accent); text-decoration: none; }
 
 .photo-slots { display: flex; gap: 8px; }
