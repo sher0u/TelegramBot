@@ -565,6 +565,45 @@ async def verify_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 # ── Add scammer directly (button-driven, auto-approved) ──────────────────────
+# Clean single-message flow: one bot message is edited in place at every step and
+# the admin's typed answers are deleted, so the chat never fills up with the whole
+# question-and-answer history.
+
+async def _sadd_edit(query, context, text, keyboard=None) -> None:
+    """Callback step — edit the single add-scammer message in place."""
+    try:
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
+        context.user_data["sadd_msg_id"] = query.message.message_id
+    except Exception:
+        msg = await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard)
+        context.user_data["sadd_msg_id"] = msg.message_id
+
+
+async def _sadd_reply(update, context, text, keyboard=None) -> None:
+    """Text step — delete the admin's typed answer, then edit the single message."""
+    chat_id = update.effective_chat.id
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    prev_id = context.user_data.get("sadd_msg_id")
+    if prev_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=prev_id, text=text,
+                parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard,
+            )
+            return
+        except Exception:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=prev_id)
+            except Exception:
+                pass
+    msg = await context.bot.send_message(
+        chat_id=chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard,
+    )
+    context.user_data["sadd_msg_id"] = msg.message_id
+
 
 async def scam_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -572,9 +611,9 @@ async def scam_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
     context.user_data["sadd"] = {}
-    await query.message.reply_text(
+    await _sadd_edit(
+        query, context,
         "➕ *إضافة نصاب مباشرة \\(ينشر فورًا بدون مراجعة\\)*\n\n📛 أرسل الاسم الكامل:",
-        parse_mode=ParseMode.MARKDOWN_V2,
     )
     return _SCAM_ADD_NAME
 
@@ -585,9 +624,9 @@ async def _scam_add_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE, v
     text = f"{label} \\(اختياري\\):"
     kb = scam_add_skip_kb()
     if via_callback:
-        await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
+        await _sadd_edit(update.callback_query, context, text, kb)
     else:
-        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
+        await _sadd_reply(update, context, text, kb)
 
 
 async def scam_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -602,9 +641,9 @@ async def _scam_add_advance(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     if context.user_data["sadd_step"] >= len(SCAM_ADD_OPTIONAL_STEPS):
         text = "⚠️ أرسل سبب الإضافة \\(مطلوب\\):"
         if via_callback:
-            await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+            await _sadd_edit(update.callback_query, context, text)
         else:
-            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+            await _sadd_reply(update, context, text)
         return _SCAM_ADD_REASON
     await _scam_add_prompt(update, context, via_callback=via_callback)
     return _SCAM_ADD_OPTIONAL
@@ -639,10 +678,8 @@ async def scam_add_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         card=d.get("card", ""), passport=d.get("passport", ""), reason=reason, photos=[],
     )
     SCAM.approve_report(report["id"])
-    await update.message.reply_text(
-        f"✅ *تمت إضافة النصاب ونشره مباشرة\\.*\n🆔 `{report['id']}`",
-        parse_mode=ParseMode.MARKDOWN_V2,
-    )
+    await _sadd_reply(update, context, f"✅ *تمت إضافة النصاب ونشره مباشرة\\.*\n🆔 `{report['id']}`")
+    context.user_data.pop("sadd_msg_id", None)
     return ConversationHandler.END
 
 
@@ -651,9 +688,10 @@ async def scam_add_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data.pop("sadd_step", None)
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await _sadd_edit(update.callback_query, context, "❌ تم الإلغاء\\.")
     else:
-        await update.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await _sadd_reply(update, context, "❌ تم الإلغاء\\.")
+    context.user_data.pop("sadd_msg_id", None)
     return ConversationHandler.END
 
 
