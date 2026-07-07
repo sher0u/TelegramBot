@@ -81,6 +81,16 @@ def _esc(text) -> str:
     return escape_markdown(str(text) if text else "—", version=2)
 
 
+_LRM = "‎"
+
+
+def _ltr(text) -> str:
+    """Wraps a value in Unicode LRM marks so digits/IDs render left-to-right
+    even when embedded in an RTL (Arabic) message."""
+    s = _esc(text)
+    return f"{_LRM}{s}{_LRM}" if s and s != "—" else s
+
+
 async def _edit_or_reply(update: Update, text: str, keyboard=None, parse_mode=MD2) -> None:
     kwargs = dict(text=text, parse_mode=parse_mode, reply_markup=keyboard)
     if update.callback_query:
@@ -1852,13 +1862,32 @@ def _fmt_scam_result(r: dict) -> str:
         f"⚠️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🎂 *الميلاد:* {_esc(r.get('date_of_birth') or '—')}\n"
-        f"🆔 *Telegram ID:* {_esc(r.get('telegram_user_id') or '—')}\n"
-        f"📱 *الهاتف:* {_esc(r.get('phone') or '—')}\n"
-        f"🏦 *CCP:* {_esc(r.get('ccp') or '—')}\n"
-        f"💳 *البطاقة:* {_esc(r.get('card') or '—')}\n"
-        f"🛂 *الجواز:* {_esc(r.get('passport') or '—')}\n"
+        f"🆔 *Telegram ID:* {_ltr(r.get('telegram_user_id') or '—')}\n"
+        f"📱 *الهاتف:* {_ltr(r.get('phone') or '—')}\n"
+        f"🏦 *CCP:* {_ltr(r.get('ccp') or '—')}\n"
+        f"🔑 *المفتاح/RIP:* {_ltr(r.get('cle_rip') or '—')}\n"
+        f"💳 *البطاقة:* {_ltr(r.get('card') or '—')}\n"
+        f"🛂 *الجواز:* {_ltr(r.get('passport') or '—')}\n"
         f"⚠️ *السبب:* {_esc(r['reason'])}\n\n"
         "_للاطلاع على التفاصيل الكاملة \\(غير مموّهة\\)، استخدم التطبيق المصغر وزر «طلب رؤية التفاصيل الكاملة»\\._"
+    )
+
+
+def _md2_link(text: str, url: str) -> str:
+    esc_url = url.replace("\\", "\\\\").replace(")", "\\)")
+    return f"[{_esc(text)}]({esc_url})"
+
+
+def _fmt_guarantor_result(g: dict) -> str:
+    contact_line = f"💬 *التواصل:* {_md2_link(g.get('contact_label') or g['contact'], g['contact'])}" if g.get("contact") else ""
+    return (
+        f"✅ *هذا شخص ضامن موثوق*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📛 *الاسم:* {_esc(g['name'])}\n"
+        f"👪 *اللقب:* {_esc(g['surname'])}\n"
+        f"🇷🇺 *بالروسية:* {_esc(g.get('full_name_ru') or '—')}\n"
+        f"📱 *الهاتف:* {_ltr(g['phone'])}\n"
+        f"{contact_line}"
     )
 
 
@@ -1870,14 +1899,18 @@ async def scam_check_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def scam_check_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from admin import is_admin
     user = update.effective_user
     text = update.message.text.strip()
-    if not SCAM.check_and_bump_quota(user.id):
+    if not is_admin(user.id) and not SCAM.check_and_bump_quota(user.id):
         await _conv_reply(update, context, C.SCAM_CHECK_QUOTA, KB.scam_menu_kb())
         return ConversationHandler.END
     res = SCAM.smart_search(text)
     if res["mode"] == "none":
         await _conv_reply(update, context, C.SCAM_CHECK_NONE, KB.scam_menu_kb())
+        return ConversationHandler.END
+    if res["mode"] == "guarantor":
+        await _conv_reply(update, context, _fmt_guarantor_result(res["results"][0]), KB.scam_menu_kb())
         return ConversationHandler.END
     if res["mode"] == "candidates":
         context.user_data["scam_candidates"] = res["results"]
@@ -2048,12 +2081,14 @@ async def _send_scam_report_to_admin(context, report: dict) -> None:
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📛 *الاسم الكامل:* {_esc(report['full_name'])}\n"
         f"👪 *اللقب:* {_esc(report['surname'] or '—')}\n"
+        f"🇷🇺 *الاسم بالروسية:* {_esc(report.get('full_name_ru') or '—')}\n"
         f"🎂 *تاريخ الميلاد:* {_esc(report['date_of_birth'] or '—')}\n"
-        f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'] or '—')}\n"
-        f"📱 *الهاتف:* {_esc(report['phone'] or '—')}\n"
-        f"🏦 *CCP:* {_esc(report['ccp'] or '—')}\n"
-        f"💳 *البطاقة:* {_esc(report['card'] or '—')}\n"
-        f"🛂 *جواز السفر:* {_esc(report['passport'] or '—')}\n"
+        f"🆔 *Telegram ID:* {_ltr(report['telegram_user_id'] or '—')}\n"
+        f"📱 *الهاتف:* {_ltr(report['phone'] or '—')}\n"
+        f"🏦 *CCP:* {_ltr(report['ccp'] or '—')}\n"
+        f"🔑 *المفتاح/RIP:* {_ltr(report.get('cle_rip') or '—')}\n"
+        f"💳 *البطاقة:* {_ltr(report['card'] or '—')}\n"
+        f"🛂 *جواز السفر:* {_ltr(report['passport'] or '—')}\n"
         f"⚠️ *السبب:* {_esc(report['reason'])}\n"
         f"🆔 *report\\_id:* `{report['id']}`"
     )

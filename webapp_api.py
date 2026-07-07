@@ -118,6 +118,16 @@ def _esc(text) -> str:
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
 
 
+_LRM = "‎"
+
+
+def _ltr(text) -> str:
+    """Wraps a value in Unicode LRM marks so digits/IDs render left-to-right
+    even when embedded in an RTL (Arabic) Telegram message."""
+    s = _esc(text)
+    return f"{_LRM}{s}{_LRM}" if s and s != "—" else s
+
+
 def _approve_kb(prefix: str, item_id: str):
     return {"inline_keyboard": [[
         {"text": "✅ موافقة", "callback_data": f"{prefix}_app_{item_id}"},
@@ -585,7 +595,7 @@ def _scam_access_kb(req_id: str):
 @app.post("/api/scam/search")
 def scam_search(body: ScamSearch, x_telegram_init_data: str = Header(default="")):
     user = _current_user(x_telegram_init_data)
-    if not SCAM.check_and_bump_quota(user["id"]):
+    if user["id"] not in ADMINS and not SCAM.check_and_bump_quota(user["id"]):
         raise HTTPException(429, f"لقد تجاوزت الحد الأقصى ({SCAM.DAILY_SEARCH_LIMIT} عمليات بحث يوميًا)")
     if body.query.strip():
         return SCAM.smart_search(body.query)
@@ -625,12 +635,12 @@ async def scam_submit_report(body: ScamReport, x_telegram_init_data: str = Heade
         f"👪 *اللقب:* {_esc(report['surname'])}\n"
         f"🇷🇺 *الاسم بالروسية:* {_esc(report['full_name_ru'])}\n"
         f"🎂 *تاريخ الميلاد:* {_esc(report['date_of_birth'])}\n"
-        f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
-        f"📱 *الهاتف:* {_esc(report['phone'])}\n"
-        f"🏦 *CCP:* {_esc(report['ccp'])}\n"
-        f"🔑 *المفتاح/RIP:* {_esc(report['cle_rip'])}\n"
-        f"💳 *البطاقة:* {_esc(report['card'])}\n"
-        f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+        f"🆔 *Telegram ID:* {_ltr(report['telegram_user_id'])}\n"
+        f"📱 *الهاتف:* {_ltr(report['phone'])}\n"
+        f"🏦 *CCP:* {_ltr(report['ccp'])}\n"
+        f"🔑 *المفتاح/RIP:* {_ltr(report['cle_rip'])}\n"
+        f"💳 *البطاقة:* {_ltr(report['card'])}\n"
+        f"🛂 *جواز السفر:* {_ltr(report['passport'])}\n"
         f"⚠️ *السبب:* {_esc(report['reason'])}\n"
         f"🆔 *report\\_id:* `{report['id']}`"
     )
@@ -870,12 +880,14 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
                 "🔓 *تمت الموافقة على طلب الاطلاع الكامل*\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📛 *الاسم:* {_esc(report['full_name'])} {_esc(report['surname'])}\n"
+                f"🇷🇺 *بالروسية:* {_esc(report.get('full_name_ru') or '—')}\n"
                 f"🎂 *الميلاد:* {_esc(report['date_of_birth'])}\n"
-                f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
-                f"📱 *الهاتف:* {_esc(report['phone'])}\n"
-                f"🏦 *CCP:* {_esc(report['ccp'])}\n"
-                f"💳 *البطاقة:* {_esc(report['card'])}\n"
-                f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+                f"🆔 *Telegram ID:* {_ltr(report['telegram_user_id'])}\n"
+                f"📱 *الهاتف:* {_ltr(report['phone'])}\n"
+                f"🏦 *CCP:* {_ltr(report['ccp'])}\n"
+                f"🔑 *المفتاح/RIP:* {_ltr(report.get('cle_rip') or '—')}\n"
+                f"💳 *البطاقة:* {_ltr(report['card'])}\n"
+                f"🛂 *جواز السفر:* {_ltr(report['passport'])}\n"
                 f"⚠️ *السبب:* {_esc(report['reason'])}"
             )
             await _tg_send_message(req["requester_user_id"], msg)

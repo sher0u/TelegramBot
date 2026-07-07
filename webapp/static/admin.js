@@ -15,6 +15,11 @@ function esc(s) {
   return (s || "").toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function ltr(value) {
+  const v = esc(value || "—");
+  return v === "—" ? v : `<span class="ltr-field" dir="ltr">${v}</span>`;
+}
+
 function toast(msg) {
   const el = document.getElementById("toast");
   el.textContent = msg;
@@ -126,9 +131,9 @@ function pendingCardBody(kind, it) {
   } else if (kind === "scam_reports") {
     lines = `<div class="meta-line"><b>الاسم:</b> ${esc(it.full_name)} ${esc(it.surname)}</div>
       <div class="meta-line"><b>بالروسية:</b> ${esc(it.full_name_ru || "—")}</div>
-      <div class="meta-line"><b>الهاتف:</b> ${esc(it.phone || "—")} — <b>CCP:</b> ${esc(it.ccp || "—")} — <b>المفتاح:</b> ${esc(it.cle_rip || "—")}</div>
-      <div class="meta-line"><b>البطاقة:</b> ${esc(it.card || "—")} — <b>الجواز:</b> ${esc(it.passport || "—")}</div>
-      <div class="meta-line"><b>Telegram ID:</b> ${esc(it.telegram_user_id || "—")} — <b>الميلاد:</b> ${esc(it.date_of_birth || "—")}</div>
+      <div class="meta-line"><b>الهاتف:</b> ${ltr(it.phone)} — <b>CCP:</b> ${ltr(it.ccp)} — <b>المفتاح:</b> ${ltr(it.cle_rip)}</div>
+      <div class="meta-line"><b>البطاقة:</b> ${ltr(it.card)} — <b>الجواز:</b> ${ltr(it.passport)}</div>
+      <div class="meta-line"><b>Telegram ID:</b> ${ltr(it.telegram_user_id)} — <b>الميلاد:</b> ${esc(it.date_of_birth || "—")}</div>
       <div class="meta-line"><b>السبب:</b> ${esc(it.reason)}</div>`;
   } else if (kind === "scam_access_requests") {
     lines = `<div class="meta-line"><b>report_id:</b> ${esc(it.report_id)}</div>
@@ -184,9 +189,9 @@ function scamManageCardBody(r) {
   return `
     <div class="meta-line"><b>الاسم:</b> ${esc(r.full_name)} ${esc(r.surname)}</div>
     <div class="meta-line"><b>بالروسية:</b> ${esc(r.full_name_ru || "—")}</div>
-    <div class="meta-line"><b>الهاتف:</b> ${esc(r.phone || "—")} — <b>CCP:</b> ${esc(r.ccp || "—")} — <b>المفتاح:</b> ${esc(r.cle_rip || "—")}</div>
-    <div class="meta-line"><b>البطاقة:</b> ${esc(r.card || "—")} — <b>الجواز:</b> ${esc(r.passport || "—")}</div>
-    <div class="meta-line"><b>Telegram ID:</b> ${esc(r.telegram_user_id || "—")} — <b>الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
+    <div class="meta-line"><b>الهاتف:</b> ${ltr(r.phone)} — <b>CCP:</b> ${ltr(r.ccp)} — <b>المفتاح:</b> ${ltr(r.cle_rip)}</div>
+    <div class="meta-line"><b>البطاقة:</b> ${ltr(r.card)} — <b>الجواز:</b> ${ltr(r.passport)}</div>
+    <div class="meta-line"><b>Telegram ID:</b> ${ltr(r.telegram_user_id)} — <b>الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
     <div class="meta-line"><b>السبب:</b> ${esc(r.reason)}</div>
     <div class="btn-row">
       <button class="btn edit-scam secondary">✏️ تعديل</button>
@@ -195,9 +200,13 @@ function scamManageCardBody(r) {
     <div class="scam-edit-form hidden"></div>`;
 }
 
+const SCAM_LTR_KEYS = new Set(["telegram_user_id", "phone", "ccp", "cle_rip", "card", "passport"]);
+
 function scamEditFormHtml(r) {
-  const fields = SCAM_EDIT_FIELDS.map(([key, label]) =>
-    `<div class="form-group"><label>${label}</label><input data-key="${key}" value="${esc(r[key] || "")}"></div>`).join("");
+  const fields = SCAM_EDIT_FIELDS.map(([key, label]) => {
+    const ltrAttr = SCAM_LTR_KEYS.has(key) ? ' class="ltr-field" dir="ltr"' : "";
+    return `<div class="form-group"><label>${label}</label><input data-key="${key}"${ltrAttr} value="${esc(r[key] || "")}"></div>`;
+  }).join("");
   return `${fields}
     <div class="form-group"><label>سبب البلاغ</label><textarea data-key="reason">${esc(r.reason || "")}</textarea></div>
     <div class="btn-row">

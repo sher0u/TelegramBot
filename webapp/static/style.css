@@ -1042,6 +1042,7 @@ svg.icon-svg {
 .guarantor-result .feature-text { display: flex; flex-direction: column; gap: 3px; }
 .guarantor-result .label { font-size: 14.5px; font-weight: 800; color: var(--success); }
 .guarantor-result .feature-count { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.guarantor-result a.feature-count { color: var(--accent); text-decoration: none; }
 
 .photo-slots { display: flex; gap: 8px; }
 

@@ -15,8 +15,16 @@ NAME_FIELDS = ["full_name", "surname", "full_name_ru"]
 
 # Known trusted guarantors — shown as a positive result instead of a scam match.
 GUARANTORS = [
-    {"full_name": "Yousfi Abdelkader", "full_name_ru": "Юсфи Абделькадер", "phone": "+79158846143"},
-    {"full_name": "Derouiche Abdennour", "full_name_ru": "Деруиш Абденнур", "phone": "+79967996510"},
+    {
+        "name": "Yousfi", "surname": "Abdelkader", "full_name": "Yousfi Abdelkader",
+        "full_name_ru": "Юсфи Абделькадер", "phone": "+79158846143",
+        "contact": "https://t.me/Yousfi_Abdelkader", "contact_label": "تيليجرام",
+    },
+    {
+        "name": "Derouiche", "surname": "Abdennour", "full_name": "Derouiche Abdennour",
+        "full_name_ru": "Деруиш Абденнур", "phone": "+79967996510",
+        "contact": "https://wa.me/79967996510", "contact_label": "واتساب",
+    },
 ]
 
 
@@ -42,7 +50,8 @@ def check_guarantor(value: str) -> dict | None:
     if not v:
         return None
     for g in GUARANTORS:
-        if _norm(g["phone"]) == v or _norm(g["full_name"]) == v or _norm(g["full_name_ru"]) == v:
+        if v in (_norm(g["phone"]), _norm(g["full_name"]), _norm(g["full_name_ru"]),
+                 _norm(g["name"]), _norm(g["surname"])):
             return g
     return None
 

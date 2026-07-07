@@ -849,22 +849,42 @@ function viewScamCheck() {
   document.getElementById("scamGoReportBtn").onclick = () => go("scamReport", {}, "بلّغ عن نصاب");
 }
 
+const QUICK_SEARCH_MODES = {
+  any:       { label: "اكتب أي معلومة تعرفها عن الشخص", placeholder: "اسم، رقم هاتف، CCP، جواز سفر، معرّف تيليجرام..." },
+  full_name: { label: "اكتب الاسم فقط",                 placeholder: "مثال: أحمد" },
+  surname:   { label: "اكتب اللقب فقط",                  placeholder: "مثال: بن علي" },
+};
+
 function viewScamQuickSearch() {
   elApp.innerHTML = `
+    <div class="segmented" id="quickMode">
+      <div class="seg active" data-mode="any">أي معلومة</div>
+      <div class="seg" data-mode="full_name">الاسم فقط</div>
+      <div class="seg" data-mode="surname">اللقب فقط</div>
+    </div>
     <div class="form-group">
-      <label>اكتب أي معلومة تعرفها عن الشخص</label>
-      <input id="quickQuery" placeholder="اسم، رقم هاتف، CCP، جواز سفر، معرّف تيليجرام...">
+      <label id="quickLabel">${QUICK_SEARCH_MODES.any.label}</label>
+      <input id="quickQuery" placeholder="${QUICK_SEARCH_MODES.any.placeholder}">
     </div>
     <button class="btn" id="quickSearchBtn">تحقق الآن</button>
     <div id="scamResults"></div>`;
+  let mode = "any";
   const input = document.getElementById("quickQuery");
+  const segEls = elApp.querySelectorAll("#quickMode .seg");
+  segEls.forEach(el => el.onclick = () => {
+    mode = el.dataset.mode;
+    segEls.forEach(s => s.classList.toggle("active", s === el));
+    document.getElementById("quickLabel").textContent = QUICK_SEARCH_MODES[mode].label;
+    input.placeholder = QUICK_SEARCH_MODES[mode].placeholder;
+  });
   const run = async () => {
     const q = input.value.trim();
     if (!q) { toast("⚠️ اكتب معلومة واحدة على الأقل للبحث"); return; }
     const results = document.getElementById("scamResults");
     results.innerHTML = `<div class="empty">جارِ البحث...</div>`;
+    const body = mode === "any" ? { query: q } : { [mode]: q };
     try {
-      const res = await api("/api/scam/search", { method: "POST", body: JSON.stringify({ query: q }) });
+      const res = await api("/api/scam/search", { method: "POST", body: JSON.stringify(body) });
       renderScamResults(res);
     } catch (e) { results.innerHTML = ""; toast("⚠️ " + e.message); }
   };
@@ -906,13 +926,16 @@ function renderScamResults(res) {
   }
   if (res.mode === "guarantor") {
     const g = res.results[0];
+    const contactHtml = g.contact
+      ? `<a class="feature-count" href="${esc(g.contact)}" target="_blank" rel="noopener">💬 ${esc(g.contact_label || "تواصل")}</a>` : "";
     results.innerHTML = `
       <div class="guarantor-result">
         <span class="row-icon t-green"><svg class="icon-svg"><use href="#i-check"/></svg></span>
         <div class="feature-text">
           <span class="label">✅ هذا شخص ضامن موثوق</span>
-          <span class="feature-count">${esc(g.full_name)} — ${esc(g.full_name_ru)}</span>
+          <span class="feature-count">${esc(g.name)} ${esc(g.surname)} — ${esc(g.full_name_ru)}</span>
           <span class="feature-count ltr-field" dir="ltr">${esc(g.phone)}</span>
+          ${contactHtml}
         </div>
       </div>`;
     return;
@@ -948,6 +971,11 @@ function renderScamResults(res) {
   });
 }
 
+function ltr(value) {
+  const v = esc(value || "—");
+  return v === "—" ? v : `<span class="ltr-field" dir="ltr">${v}</span>`;
+}
+
 function showScamDetail(r) {
   const photosHtml = (r.photos || []).map(p => `<img src="/api/photo/${p}">`).join("");
   const wrap = showDetail(`
@@ -955,12 +983,12 @@ function showScamDetail(r) {
     <h2>⚠️ ${esc(r.full_name)} ${esc(r.surname)}</h2>
     ${r.full_name_ru ? `<div class="detail-row"><b>بالروسية:</b> ${esc(r.full_name_ru)}</div>` : ""}
     <div class="detail-row"><b>تاريخ الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
-    <div class="detail-row"><b>معرّف تيليجرام:</b> ${esc(r.telegram_user_id || "—")}</div>
-    <div class="detail-row"><b>الهاتف:</b> ${esc(r.phone || "—")}</div>
-    <div class="detail-row"><b>CCP:</b> ${esc(r.ccp || "—")}</div>
-    <div class="detail-row"><b>المفتاح/RIP:</b> ${esc(r.cle_rip || "—")}</div>
-    <div class="detail-row"><b>البطاقة:</b> ${esc(r.card || "—")}</div>
-    <div class="detail-row"><b>جواز السفر:</b> ${esc(r.passport || "—")}</div>
+    <div class="detail-row"><b>معرّف تيليجرام:</b> ${ltr(r.telegram_user_id)}</div>
+    <div class="detail-row"><b>الهاتف:</b> ${ltr(r.phone)}</div>
+    <div class="detail-row"><b>CCP:</b> ${ltr(r.ccp)}</div>
+    <div class="detail-row"><b>المفتاح/RIP:</b> ${ltr(r.cle_rip)}</div>
+    <div class="detail-row"><b>البطاقة:</b> ${ltr(r.card)}</div>
+    <div class="detail-row"><b>جواز السفر:</b> ${ltr(r.passport)}</div>
     <div class="detail-row"><b>سبب البلاغ:</b> ${esc(r.reason)}</div>
     <div class="scam-access-box">
       <textarea id="scamAccessReason" placeholder="اختياري: لماذا تريد التفاصيل الكاملة؟"></textarea>
