@@ -21,6 +21,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
          InlineKeyboardButton("🏠 شريك سكن",           callback_data="rm_menu")],
         [InlineKeyboardButton("🧳 هبطلي ولا طلعلي معاك", callback_data="trv_menu")],
         [InlineKeyboardButton("📝 تقديم استفسار",       callback_data="inquiry_start")],
+        [InlineKeyboardButton("🕵️ شرلوك الجزائري",      callback_data="scam_menu")],
         [InlineKeyboardButton("📢 القناة",  url="https://t.me/Kaader_Dz"),
          InlineKeyboardButton("📺 يوتيوب", url="https://www.youtube.com/@Yousfi-Abdelkader"),
          InlineKeyboardButton("💬 الشات",  url="https://t.me/RussianTent")],
@@ -614,8 +615,8 @@ def roommate_del_confirm_kb(listing_id: str) -> InlineKeyboardMarkup:
 def travel_main_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ أضف رحلتك",                       callback_data="trv_post_choose")],
-        [InlineKeyboardButton("🇷🇺 ➡️ 🇩🇿   من روسيا إلى الجزائر", callback_data="trv_post_msk_alg")],
-        [InlineKeyboardButton("🇩🇿 ➡️ 🇷🇺   من الجزائر إلى روسيا", callback_data="trv_post_alg_msk")],
+        [InlineKeyboardButton("🇷🇺 ➡️ 🇩🇿   من روسيا إلى الجزائر", callback_data="trv_browse_msk_alg")],
+        [InlineKeyboardButton("🇩🇿 ➡️ 🇷🇺   من الجزائر إلى روسيا", callback_data="trv_browse_alg_msk")],
         [InlineKeyboardButton("📋 رحلاتي",                          callback_data="trv_mylist")],
         [InlineKeyboardButton("🔙 القائمة الرئيسية",               callback_data="Start")],
     ])
@@ -652,6 +653,32 @@ def trv_my_kb(posts: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+def trv_browse_kb(route_token: str, index: int, total: int,
+                  poster_user_id: int = None) -> InlineKeyboardMarkup:
+    """Travel post card keyboard — nav + contact + add-new-trip + back."""
+    nav = []
+    if index > 0:
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"trv_bnav_{route_token}_{index-1}"))
+    nav.append(InlineKeyboardButton(f"📍 {index+1} / {total}", callback_data="noop"))
+    if index < total - 1:
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"trv_bnav_{route_token}_{index+1}"))
+
+    rows = [nav]
+    if poster_user_id:
+        rows.append([InlineKeyboardButton("💬 تواصل مع صاحب الرحلة",
+                                          url=f"tg://user?id={poster_user_id}")])
+    rows.append([InlineKeyboardButton("➕ أضف رحلتك على هذا الاتجاه", callback_data=f"trv_post_{route_token}")])
+    rows.append([InlineKeyboardButton("🔙 رجوع", callback_data="trv_menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+def trv_browse_empty_kb(route_token: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ كن أول من يضيف رحلة", callback_data=f"trv_post_{route_token}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="trv_menu")],
+    ])
+
+
 def trv_item_owner_kb(post_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🗑️ حذف الرحلة",  callback_data=f"trv_del_{post_id}")],
@@ -676,3 +703,40 @@ def admin_approve_trv_kb(post_id: str) -> InlineKeyboardMarkup:
 
 def admin_active_trv_kb(post_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("✅ تمت الموافقة", callback_data="noop")]])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# شرلوك الجزائري — SCAM CHECK & REPORT
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scam_menu_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔍 تحقق من شخص",   callback_data="scam_check_start")],
+        [InlineKeyboardButton("🚩 بلّغ عن نصاب",   callback_data="scam_report_start")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="Start")],
+    ])
+
+
+def scam_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="scam_cancel_post")]])
+
+
+def scam_skip_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏭️ تخطي", callback_data="scam_skip_field")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="scam_cancel_post")],
+    ])
+
+
+def scam_skip_photo_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏭️ تخطي", callback_data="scam_skip_photo")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="scam_cancel_post")],
+    ])
+
+
+def admin_approve_scam_kb(report_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ موافقة ونشر", callback_data=f"scam_app_{report_id}"),
+        InlineKeyboardButton("❌ رفض",         callback_data=f"scam_rej_{report_id}"),
+    ]])

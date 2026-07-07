@@ -15,11 +15,24 @@ function esc(s) {
   return (s || "").toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function emptyIllus() {
+  return `<svg class="icon-svg empty-illus"><use href="#i-empty"/></svg>`;
+}
+
 function toast(msg) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.classList.remove("hidden");
   setTimeout(() => el.classList.add("hidden"), 2500);
+}
+
+function successPulse() {
+  const ov = document.createElement("div");
+  ov.className = "success-pulse";
+  ov.innerHTML = `<div class="success-pulse-circle"><svg class="icon-svg"><use href="#i-check"/></svg></div>`;
+  document.body.appendChild(ov);
+  tg?.HapticFeedback?.notificationOccurred?.("success");
+  setTimeout(() => ov.remove(), 900);
 }
 
 async function uploadPhoto(file) {
@@ -110,7 +123,7 @@ function render() {
 elNav.querySelectorAll(".nav-item").forEach(btn => {
   btn.onclick = () => {
     const tab = btn.dataset.tab;
-    if (tab === "home") resetTab("home", "home", {}, "KaderDzbot");
+    if (tab === "home") resetTab("home", "home", {}, "");
     if (tab === "avito") resetTab("avito", "avito", {}, "🛒 Avito Algeria");
     if (tab === "roommate") resetTab("roommate", "roommate", {}, "🏠 شريك سكن");
     if (tab === "travel") resetTab("travel", "travel", {}, "🧳 هبطلي ولا طلعلي معاك");
@@ -132,30 +145,66 @@ async function loadMeta() {
 // HOME
 // ══════════════════════════════════════════════════════════════════════════
 
+function timeGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "صباح الخير";
+  if (h < 18) return "مساء الخير";
+  return "مساء الخير";
+}
+
 async function viewHome() {
-  let heroTitle = "مرحبًا بك في KADER DZ 🇷🇺";
+  const firstName = tg?.initDataUnsafe?.user?.first_name || "";
+  let heroTitle = firstName ? `${timeGreeting()} يا ${firstName} 👋` : "مرحبًا بك في KADER DZ 🇷🇺";
   let heroSubtitle = "مساعدك الشامل للدراسة والحياة في روسيا — تصفح، انشر، وتواصل مع المجتمع كله من هنا.";
+  let statsLine = "";
+  let counts = { avito_count: 0, roommate_count: 0, travel_count: 0 };
   try {
     const { text } = await api("/api/home_banner");
     if (text) { heroTitle = "📢 إعلان من الإدارة"; heroSubtitle = text; }
   } catch (e) { /* ignore, fall back to default welcome */ }
+  try {
+    const stats = await api("/api/stats");
+    counts = stats;
+    if (stats.posts_this_week > 0) statsLine = `<div class="hero-stat">+${stats.posts_this_week} إعلان ونشاط هذا الأسبوع</div>`;
+  } catch (e) { /* ignore */ }
+
+  const countLbl = n => n > 0 ? `${n} إعلان نشط` : "كن أول من ينشر";
 
   elApp.innerHTML = `
     <div class="hero">
       <div class="title">${esc(heroTitle)}</div>
       <div class="subtitle">${esc(heroSubtitle)}</div>
+      ${statsLine}
     </div>
-    <div class="home-grid">
-      <button class="home-tile" data-go="content" data-id="guide"><span class="icon-circle">📘</span><span class="label">دليلك الشامل</span></button>
-      <button class="home-tile" data-go="content" data-id="consular"><span class="icon-circle">🏛️</span><span class="label">الخدمات القنصلية</span></button>
-      <button class="home-tile" data-go="content" data-id="services"><span class="icon-circle">⚙️</span><span class="label">الخدمات</span></button>
-      <button class="home-tile" data-go="avito"><span class="icon-circle">🛒</span><span class="label">Avito Algeria</span></button>
-      <button class="home-tile" data-go="roommate"><span class="icon-circle">🏠</span><span class="label">شريك سكن</span></button>
-      <button class="home-tile" data-go="travel"><span class="icon-circle">🧳</span><span class="label">هبطلي ولا طلعلي معاك</span></button>
-      <button class="home-tile" data-go="inquiry"><span class="icon-circle">📝</span><span class="label">تقديم استفسار</span></button>
-      <button class="home-tile" data-go="content" data-id="about"><span class="icon-circle">ℹ️</span><span class="label">عن البوت</span></button>
+
+    <div class="feature-row">
+      <button class="feature-card" data-go="travel">
+        <span class="icon-circle t-rose"><svg class="icon-svg"><use href="#i-suitcase"/></svg></span>
+        <span class="feature-text"><span class="label">هبطلي ولا طلعلي معاك</span><span class="feature-count">${countLbl(counts.travel_count)}</span></span>
+        <span class="chevron">‹</span>
+      </button>
+      <button class="feature-card" data-go="avito">
+        <span class="icon-circle"><svg class="icon-svg"><use href="#i-cart"/></svg></span>
+        <span class="feature-text"><span class="label">Avito Algeria</span><span class="feature-count">${countLbl(counts.avito_count)}</span></span>
+        <span class="chevron">‹</span>
+      </button>
+      <button class="feature-card" data-go="scamCheck">
+        <span class="icon-circle t-danger"><svg class="icon-svg"><use href="#i-shield"/></svg></span>
+        <span class="feature-text"><span class="label">شرلوك الجزائري</span><span class="feature-count">تحقق قبل ما تحول فلوسك</span></span>
+        <span class="chevron">‹</span>
+      </button>
+    </div>
+
+    <div class="section-title">الأدلة والخدمات</div>
+    <div class="compact-grid">
+      <button class="compact-tile" data-go="roommate"><span class="icon-circle t-green"><svg class="icon-svg"><use href="#i-users"/></svg></span><span class="label">شريك سكن</span></button>
+      <button class="compact-tile" data-go="content" data-id="guide"><span class="icon-circle t-blue"><svg class="icon-svg"><use href="#i-book"/></svg></span><span class="label">دليلك الشامل</span></button>
+      <button class="compact-tile" data-go="content" data-id="consular"><span class="icon-circle t-violet"><svg class="icon-svg"><use href="#i-building"/></svg></span><span class="label">الخدمات القنصلية</span></button>
+      <button class="compact-tile" data-go="content" data-id="services"><span class="icon-circle t-teal"><svg class="icon-svg"><use href="#i-gear"/></svg></span><span class="label">الخدمات</span></button>
+      <button class="compact-tile" data-go="inquiry"><span class="icon-circle t-amber"><svg class="icon-svg"><use href="#i-edit"/></svg></span><span class="label">تقديم استفسار</span></button>
+      <button class="compact-tile" data-go="content" data-id="about"><span class="icon-circle t-slate"><svg class="icon-svg"><use href="#i-info"/></svg></span><span class="label">عن البوت</span></button>
     </div>`;
-  elApp.querySelectorAll(".home-tile").forEach(btn => {
+  elApp.querySelectorAll(".feature-card, .compact-tile").forEach(btn => {
     btn.onclick = () => {
       const v = btn.dataset.go;
       const label = btn.querySelector(".label").textContent;
@@ -171,11 +220,11 @@ async function viewHome() {
 
 function viewMore() {
   elApp.innerHTML = `
-    <div class="list-item" data-go="content" data-id="guide"><span class="title">📘 دليلك الشامل</span><span class="chevron">‹</span></div>
-    <div class="list-item" data-go="content" data-id="consular"><span class="title">🏛️ الخدمات القنصلية</span><span class="chevron">‹</span></div>
-    <div class="list-item" data-go="content" data-id="services"><span class="title">⚙️ الخدمات</span><span class="chevron">‹</span></div>
-    <div class="list-item" data-go="inquiry"><span class="title">📝 تقديم استفسار</span><span class="chevron">‹</span></div>
-    <div class="list-item" data-go="content" data-id="about"><span class="title">ℹ️ عن البوت</span><span class="chevron">‹</span></div>`;
+    <div class="list-item" data-go="content" data-id="guide"><span class="row-icon t-blue"><svg class="icon-svg"><use href="#i-book"/></svg></span><span class="title">دليلك الشامل</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="consular"><span class="row-icon t-violet"><svg class="icon-svg"><use href="#i-building"/></svg></span><span class="title">الخدمات القنصلية</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="services"><span class="row-icon t-teal"><svg class="icon-svg"><use href="#i-gear"/></svg></span><span class="title">الخدمات</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="inquiry"><span class="row-icon t-amber"><svg class="icon-svg"><use href="#i-edit"/></svg></span><span class="title">تقديم استفسار</span><span class="chevron">‹</span></div>
+    <div class="list-item" data-go="content" data-id="about"><span class="row-icon t-slate"><svg class="icon-svg"><use href="#i-info"/></svg></span><span class="title">عن البوت</span><span class="chevron">‹</span></div>`;
   elApp.querySelectorAll(".list-item").forEach(el => {
     el.onclick = () => {
       const v = el.dataset.go;
@@ -225,7 +274,7 @@ const avitoState = { category: "all", q: "", sort: "" };
 
 async function viewAvito() {
   elApp.innerHTML = `
-    <div class="search-bar"><span class="icon">🔍</span><input id="avitoSearch" placeholder="بحث عن منتج، مدينة..."></div>
+    <div class="search-bar"><svg class="icon-svg"><use href="#i-search"/></svg><input id="avitoSearch" placeholder="بحث عن منتج، مدينة..."></div>
     <div class="segmented" id="avitoSort">
       <div class="seg" data-v="">🔄 الأحدث</div>
       <div class="seg" data-v="asc">💰 الأرخص أولًا</div>
@@ -233,8 +282,8 @@ async function viewAvito() {
     </div>
     <div id="avitoFilters" class="filters"></div>
     <div id="avitoGrid" class="grid"></div>
-    <div id="avitoEmpty" class="empty hidden">😔 لا توجد إعلانات بهذه المعايير</div>
-    <button class="btn fab" id="avitoPostBtn">➕ نشر إعلان مجانًا</button>`;
+    <div id="avitoEmpty" class="empty hidden">${emptyIllus()}لا توجد إعلانات بهذه المعايير</div>
+    <button class="fab" id="avitoPostBtn" aria-label="نشر إعلان مجانًا"><svg class="icon-svg"><use href="#i-plus"/></svg></button>`;
   renderAvitoFilters();
   renderSegmented(document.getElementById("avitoSort"), avitoState.sort, v => { avitoState.sort = v; loadAvitoGrid(); });
   document.getElementById("avitoSearch").oninput = debounce(e => { avitoState.q = e.target.value; loadAvitoGrid(); }, 350);
@@ -277,6 +326,23 @@ function catEmoji(key) {
   return label.split(" ")[0] || "📦";
 }
 
+const CAT_TINT = { electronics: "t-blue", furniture: "t-amber", clothes: "t-rose", algerian: "t-green", other: "t-slate" };
+function catTint(key) { return CAT_TINT[key] || "t-slate"; }
+
+function expiryTag(rec) {
+  if (!rec.expires_at) return "";
+  const daysLeft = (new Date(rec.expires_at) - Date.now()) / 86400000;
+  if (daysLeft > 0 && daysLeft <= 3) return `<span class="expiry-tag">⏳ ينتهي قريبًا</span>`;
+  return "";
+}
+
+function formatPrice(price) {
+  const s = esc(price);
+  const m = s.match(/^([\d\s.,]+)(.*)$/);
+  if (!m || !m[1].trim()) return s;
+  return `<span class="price-num">${m[1].trim()}</span><span class="price-cur">${m[2].trim()}</span>`;
+}
+
 async function loadAvitoGrid() {
   const grid = document.getElementById("avitoGrid");
   const empty = document.getElementById("avitoEmpty");
@@ -286,21 +352,23 @@ async function loadAvitoGrid() {
   const items = await api(`/api/items?${qs}`);
   grid.innerHTML = "";
   empty.classList.toggle("hidden", items.length > 0);
-  if (!items.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد إعلانات بهذه المعايير`;
-  for (const item of items) {
+  if (!items.length) empty.innerHTML = `${emptyIllus()}لا توجد إعلانات بهذه المعايير`;
+  for (const [idx, item] of items.entries()) {
     const card = document.createElement("div");
     card.className = "card";
+    card.style.setProperty("--i", idx % 10);
     const seller = item.username ? `@${esc(item.username)}` : esc(item.first_name || "—");
     card.innerHTML = `
       <div class="img-wrap">
         ${item.photo_id ? `<img src="/api/photo/${item.photo_id}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>📦</span>'">` : `<span class="placeholder-icon">📦</span>`}
-        <span class="cat-badge">${catEmoji(item.category)}</span>
-        <span class="price-badge">${esc(item.price)}</span>
+        <span class="cat-badge ${catTint(item.category)}">${catEmoji(item.category)}</span>
+        <span class="price-badge">${formatPrice(item.price)}</span>
       </div>
       <div class="body">
         <div class="title">${esc(item.title)}</div>
         <div class="meta">📍 ${esc(item.city)}</div>
         <div class="meta">👤 ${seller}${verifiedBadge(item)}</div>
+        ${expiryTag(item)}
       </div>`;
     card.onclick = () => openAvitoDetail(item.id);
     grid.appendChild(card);
@@ -308,7 +376,7 @@ async function loadAvitoGrid() {
 }
 
 function verifiedBadge(record) {
-  return record.seller_verified ? ' <span title="معلن موثّق" style="color:var(--success); font-weight:700;">✅ موثّق</span>' : "";
+  return record.seller_verified ? ' <span class="verified-badge" title="معلن موثّق"><svg class="icon-svg"><use href="#i-check"/></svg>موثّق</span>' : "";
 }
 
 async function openAvitoDetail(id) {
@@ -335,7 +403,7 @@ function viewAvitoPost() {
       <div class="option-row" id="catPills"></div>
     </div>
     <div class="form-group"><label>عنوان الإعلان</label><input id="f_title" placeholder="مثال: iPhone 14 — حالة ممتازة"></div>
-    <div class="form-group"><label>السعر</label><input id="f_price" placeholder="مثال: 50 000 DZD"></div>
+    <div class="form-group"><label>السعر</label><input id="f_price" class="ltr-field" dir="ltr" placeholder="مثال: 50 000 DZD"></div>
     <div class="form-group"><label>المدينة</label><input id="f_city" placeholder="مثال: موسكو"></div>
     <div class="form-group"><label>الوصف</label><textarea id="f_desc" placeholder="تفاصيل المنتج..."></textarea></div>
     <button class="btn" id="submitBtn">نشر الإعلان</button>`;
@@ -362,6 +430,7 @@ function viewAvitoPost() {
     if (!selectedCat || !title || !price || !city || !desc) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
     try {
       await api("/api/submit/item", { method: "POST", body: JSON.stringify({ category: selectedCat, title, price, city, description: desc, photo_id: photoId }) });
+      successPulse();
       toast("✅ تم استلام إعلانك، بانتظار المراجعة");
       back();
     } catch (e) { toast("⚠️ " + e.message); }
@@ -376,7 +445,7 @@ const rmState = { city: "all", q: "", sort: "" };
 
 async function viewRoommate() {
   elApp.innerHTML = `
-    <div class="search-bar"><span class="icon">🔍</span><input id="rmSearch" placeholder="بحث عن مدينة، تفاصيل..."></div>
+    <div class="search-bar"><svg class="icon-svg"><use href="#i-search"/></svg><input id="rmSearch" placeholder="بحث عن مدينة، تفاصيل..."></div>
     <div class="segmented" id="rmSort">
       <div class="seg" data-v="">🔄 الأحدث</div>
       <div class="seg" data-v="asc">💰 الأرخص أولًا</div>
@@ -384,8 +453,8 @@ async function viewRoommate() {
     </div>
     <div id="rmFilters" class="filters"></div>
     <div id="rmGrid" class="grid"></div>
-    <div id="rmEmpty" class="empty hidden">😔 لا توجد إعلانات بعد</div>
-    <button class="btn fab" id="rmPostBtn">➕ نشر إعلان سكن</button>`;
+    <div id="rmEmpty" class="empty hidden">${emptyIllus()}لا توجد إعلانات بعد</div>
+    <button class="fab" id="rmPostBtn" aria-label="نشر إعلان سكن"><svg class="icon-svg"><use href="#i-plus"/></svg></button>`;
   renderRmFilters();
   renderSegmented(document.getElementById("rmSort"), rmState.sort, v => { rmState.sort = v; loadRmGrid(); });
   document.getElementById("rmSearch").oninput = debounce(e => { rmState.q = e.target.value; loadRmGrid(); }, 350);
@@ -415,24 +484,27 @@ async function loadRmGrid() {
   const items = await api(`/api/listings?${qs}`);
   grid.innerHTML = "";
   empty.classList.toggle("hidden", items.length > 0);
-  if (!items.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد إعلانات بهذه المعايير`;
-  for (const item of items) {
+  if (!items.length) empty.innerHTML = `${emptyIllus()}لا توجد إعلانات بهذه المعايير`;
+  for (const [idx, item] of items.entries()) {
     const card = document.createElement("div");
     card.className = "card";
+    card.style.setProperty("--i", idx % 10);
     const rtype = item.type === "need" ? "🔍 يبحث" : "🏠 عنده غرفة";
     const roomBadge = item.room_type === "studio" ? "🏠" : "🛏️";
+    const roomTint = item.room_type === "studio" ? "t-teal" : "t-violet";
     const photo = (item.photos || [])[0];
     const poster = item.username ? `@${esc(item.username)}` : esc(item.first_name || "—");
     card.innerHTML = `
       <div class="img-wrap">
         ${photo ? `<img src="/api/photo/${photo}" onerror="this.parentElement.innerHTML='<span class=placeholder-icon>🏠</span>'">` : `<span class="placeholder-icon">🏠</span>`}
-        <span class="cat-badge">${roomBadge}</span>
-        <span class="price-badge">${esc(item.price)}</span>
+        <span class="cat-badge ${roomTint}">${roomBadge}</span>
+        <span class="price-badge">${formatPrice(item.price)}</span>
       </div>
       <div class="body">
         <div class="title">${rtype} — ${esc(item.city)}</div>
-        <div class="meta">🚇 ${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</div>
+        <div class="meta"><span class="metro-pill ${item.metro_distance === "near" ? "near" : "far"}"><svg class="icon-svg"><use href="#i-metro"/></svg>${item.metro_distance === "near" ? "قريب من المترو" : "بعيد عن المترو"}</span></div>
         <div class="meta">👤 ${poster}${verifiedBadge(item)}</div>
+        ${expiryTag(item)}
       </div>`;
     card.onclick = () => openRmDetail(item.id);
     grid.appendChild(card);
@@ -474,7 +546,7 @@ function viewRoommatePost() {
       </div>
     </div>
     <div class="form-group"><label>المدينة</label><input id="f_city" placeholder="مثال: موسكو"></div>
-    <div class="form-group"><label>السعر الشهري</label><input id="f_price" placeholder="مثال: 15 000 ₽"></div>
+    <div class="form-group"><label>السعر الشهري</label><input id="f_price" class="ltr-field" dir="ltr" placeholder="مثال: 15 000 ₽"></div>
     <div class="form-group"><label>المسافة من المترو</label>
       <div class="option-row">
         <div class="option-pill" data-mv="near">🚇 قريب</div>
@@ -513,6 +585,7 @@ function viewRoommatePost() {
         type, room_type: roomType, city_key: "other", city, price, metro_distance: metro, description: desc,
         photos: photos.filter(Boolean),
       })});
+      successPulse();
       toast("✅ تم استلام إعلانك، بانتظار المراجعة");
       back();
     } catch (e) { toast("⚠️ " + e.message); }
@@ -525,40 +598,63 @@ function viewRoommatePost() {
 
 async function viewTravel() {
   elApp.innerHTML = `
-    <div id="trvGrid" class="grid"></div>
-    <div id="trvEmpty" class="empty hidden">😔 لا توجد رحلات بعد</div>
-    <button class="btn fab" id="trvPostBtn">➕ أضف رحلتك</button>`;
+    <div id="trvGrid" class="trip-list"></div>
+    <div id="trvEmpty" class="empty hidden">${emptyIllus()}لا توجد رحلات بعد</div>
+    <button class="fab" id="trvPostBtn" aria-label="أضف رحلتك"><svg class="icon-svg"><use href="#i-plus"/></svg></button>`;
   loadTravelGrid();
   document.getElementById("trvPostBtn").onclick = () => go("travelPost", {}, "أضف رحلتك");
 }
 
+function showTripSkeleton(list, count = 4) {
+  list.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const sk = document.createElement("div");
+    sk.className = "trip-card";
+    sk.innerHTML = `
+      <div class="trip-route">
+        <div class="trip-city"><span class="skel-line" style="width:34px;height:34px;border-radius:50%;margin:0"></span><span class="skel-line short" style="margin:8px 0 0"></span></div>
+        <div class="trip-path"></div>
+        <div class="trip-city"><span class="skel-line" style="width:34px;height:34px;border-radius:50%;margin:0"></span><span class="skel-line short" style="margin:8px 0 0"></span></div>
+      </div>
+      <div class="trip-stub"><span class="skel-line short"></span></div>`;
+    list.appendChild(sk);
+  }
+}
+
+const ROUTE_ENDS = {
+  alg_to_msk: { from: ["DZ", "الجزائر", "t-green"], to: ["RU", "روسيا", "t-blue"] },
+  msk_to_alg: { from: ["RU", "روسيا", "t-blue"],   to: ["DZ", "الجزائر", "t-green"] },
+};
+
 async function loadTravelGrid() {
-  const grid = document.getElementById("trvGrid");
+  const list = document.getElementById("trvGrid");
   const empty = document.getElementById("trvEmpty");
-  showSkeleton(grid);
+  showTripSkeleton(list);
   empty.classList.add("hidden");
   const posts = await api("/api/travel");
-  grid.innerHTML = "";
+  list.innerHTML = "";
   empty.classList.toggle("hidden", posts.length > 0);
-  if (!posts.length) empty.innerHTML = `<span class="emoji">😔</span>لا توجد رحلات بعد`;
-  const ROUTE_SHORT = { alg_to_msk: "الجزائر ⟸ روسيا", msk_to_alg: "روسيا ⟸ الجزائر" };
-  for (const p of posts) {
+  if (!posts.length) empty.innerHTML = `${emptyIllus()}لا توجد رحلات بعد`;
+  for (const [idx, p] of posts.entries()) {
     const card = document.createElement("div");
-    card.className = "card";
-    const dirEmoji = p.route === "alg_to_msk" ? "🇩🇿 ➡️ 🇷🇺" : "🇷🇺 ➡️ 🇩🇿";
+    card.className = "trip-card";
+    card.style.setProperty("--i", idx % 10);
+    const ends = ROUTE_ENDS[p.route] || { from: ["—", "—", "t-slate"], to: ["—", "—", "t-slate"] };
     card.innerHTML = `
-      <div class="img-wrap">
-        <span class="placeholder-icon">🧳</span>
-        <span class="cat-badge" style="width:auto; padding:3px 8px; font-size:12px;">${dirEmoji}</span>
-        <span class="price-badge">📅 ${esc(p.date)}</span>
+      <div class="trip-route">
+        <div class="trip-city"><span class="trip-dir">من</span><span class="flag ${ends.from[2]}">${ends.from[0]}</span><span class="code">${esc(ends.from[1])}</span></div>
+        <div class="trip-path"><svg class="icon-svg"><use href="#i-plane"/></svg></div>
+        <div class="trip-city"><span class="trip-dir">إلى</span><span class="flag ${ends.to[2]}">${ends.to[0]}</span><span class="code">${esc(ends.to[1])}</span></div>
       </div>
-      <div class="body">
-        <div class="title">${ROUTE_SHORT[p.route] || esc(p.route)}</div>
-        <div class="meta">📍 ${esc(p.city)}</div>
-        <div class="meta">👤 ${p.username ? `@${esc(p.username)}` : esc(p.first_name || "—")}${verifiedBadge(p)}</div>
+      <div class="trip-stub">
+        <span class="trip-notch start"></span><span class="trip-notch end"></span>
+        <div class="trip-date">📅 ${esc(p.date)}</div>
+        <div class="trip-info">📍 ${esc(p.city)}</div>
+        <div class="trip-info">👤 ${p.username ? `@${esc(p.username)}` : esc(p.first_name || "—")}${verifiedBadge(p)}</div>
+        ${expiryTag(p)}
       </div>`;
     card.onclick = () => openTravelDetail(p.id);
-    grid.appendChild(card);
+    list.appendChild(card);
   }
 }
 
@@ -602,6 +698,7 @@ function viewTravelPost() {
     if (!route || !date || !city || !contact) { toast("⚠️ يرجى تعبئة الحقول المطلوبة"); return; }
     try {
       await api("/api/submit/travel", { method: "POST", body: JSON.stringify({ route, date, flight, city, contact, note }) });
+      successPulse();
       toast("✅ تم استلام رحلتك، بانتظار المراجعة");
       back();
     } catch (e) { toast("⚠️ " + e.message); }
@@ -621,7 +718,7 @@ function viewInquiry() {
       </div>
     </div>
     <div class="form-group"><label>الاسم الكامل</label><input id="f_name"></div>
-    <div class="form-group"><label>رقم الهاتف</label><input id="f_phone" placeholder="+213... أو +7..."></div>
+    <div class="form-group"><label>رقم الهاتف</label><input id="f_phone" class="ltr-field" dir="ltr" type="tel" placeholder="+213... أو +7..."></div>
     <div class="form-group"><label>الخدمة المطلوبة</label>
       <div class="option-row">
         <div class="option-pill" data-s="🎓 تسجيل جامعي">🎓 تسجيل جامعي</div>
@@ -650,7 +747,231 @@ function viewInquiry() {
     if (!name || !phone || !service) { toast("⚠️ يرجى تعبئة جميع الحقول"); return; }
     try {
       await api("/api/submit/inquiry", { method: "POST", body: JSON.stringify({ name, phone, service, notes, target }) });
+      successPulse();
       toast("✅ تم استلام استفسارك");
+      back();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// شرلوك الجزائري — SCAM CHECK & REPORT
+// ══════════════════════════════════════════════════════════════════════════
+
+const SCAM_FIELDS = [
+  ["full_name", "الاسم الكامل", "مثال: أحمد", true],
+  ["phone", "رقم الهاتف", "", true],
+  ["ccp", "رقم CCP", "", true],
+  ["surname", "اللقب", "مثال: بن علي", false],
+  ["full_name_ru", "الاسم بالروسية", "مثال: Ахмед", false],
+  ["date_of_birth", "تاريخ الميلاد", "", false],
+  ["telegram_user_id", "معرّف تيليجرام (ID)", "مثال: 123456789", false],
+  ["cle_rip", "المفتاح / RIP", "", false],
+  ["card", "رقم البطاقة البنكية", "", false],
+  ["passport", "رقم جواز السفر", "", false],
+];
+
+function normalizePhone(country, raw) {
+  let digits = (raw || "").replace(/\D/g, "");
+  if (country === "dz") {
+    if (digits.startsWith("213")) digits = digits.slice(3);
+    else if (digits.startsWith("0")) digits = digits.slice(1);
+    return "+213" + digits;
+  }
+  if (digits.startsWith("8") && digits.length === 11) digits = digits.slice(1);
+  else if (digits.startsWith("7")) digits = digits.slice(1);
+  return "+7" + digits;
+}
+
+function phoneFieldHtml(idPrefix) {
+  return `<div class="form-group">
+    <label>رقم الهاتف</label>
+    <div class="phone-country" id="${idPrefix}_phone_country" data-value="">
+      <button type="button" class="option-pill" data-c="dz">🇩🇿 جزائري (يبدأ بـ 0)</button>
+      <button type="button" class="option-pill" data-c="ru">🇷🇺 روسي</button>
+    </div>
+    <input id="${idPrefix}_phone" class="ltr-field" dir="ltr" placeholder="اختر الدولة أولًا">
+  </div>`;
+}
+
+function scamFieldHtml(idPrefix, [key, label, placeholder]) {
+  if (key === "phone") return phoneFieldHtml(idPrefix);
+  const type = key === "date_of_birth" ? "date" : "text";
+  const ltr = ["telegram_user_id", "ccp", "cle_rip", "card", "passport"].includes(key) ? ' class="ltr-field" dir="ltr"' : "";
+  return `<div class="form-group"><label>${label}</label><input id="${idPrefix}_${key}" type="${type}"${ltr} placeholder="${placeholder}"></div>`;
+}
+
+function scamFieldsHtml(idPrefix) {
+  const primary = SCAM_FIELDS.filter(f => f[3]).map(f => scamFieldHtml(idPrefix, f)).join("");
+  const secondary = SCAM_FIELDS.filter(f => !f[3]).map(f => scamFieldHtml(idPrefix, f)).join("");
+  return `${primary}
+    <details class="scam-more">
+      <summary>بيانات إضافية (اختياري)</summary>
+      ${secondary}
+    </details>`;
+}
+
+function wireScamPhoneToggle(idPrefix) {
+  const wrap = document.getElementById(`${idPrefix}_phone_country`);
+  wrap.querySelectorAll(".option-pill").forEach(btn => {
+    btn.onclick = () => {
+      wrap.dataset.value = btn.dataset.c;
+      wrap.querySelectorAll(".option-pill").forEach(b => b.classList.toggle("selected", b === btn));
+      document.getElementById(`${idPrefix}_phone`).placeholder = btn.dataset.c === "dz" ? "مثال: 0555123456" : "مثال: 9161234567";
+    };
+  });
+}
+
+function readScamFields(idPrefix) {
+  const out = {};
+  for (const [key] of SCAM_FIELDS) out[key] = document.getElementById(`${idPrefix}_${key}`).value.trim();
+  const country = document.getElementById(`${idPrefix}_phone_country`).dataset.value;
+  if (out.phone) out.phone = country ? normalizePhone(country, out.phone) : out.phone;
+  return out;
+}
+
+function viewScamCheck() {
+  elApp.innerHTML = `
+    <div class="hero" style="background:var(--danger)">
+      <div class="title">🕵️ شرلوك الجزائري</div>
+      <div class="subtitle">تحقق من معلومات الشخص قبل ما تحول له فلوسك، أو بلّغ عن نصاب.</div>
+    </div>
+    <a class="guarantor-box" href="https://t.me/Yousfi_Abdelkader" target="_blank" rel="noopener">
+      <span class="row-icon t-teal"><svg class="icon-svg"><use href="#i-shield"/></svg></span>
+      <span class="feature-text"><span class="label">🛡️ ضامن موثوق</span><span class="feature-count">لتفادي أي خطر، تواصل معي شخصيًا لإتمام التحويل بأمان</span></span>
+      <span class="chevron">‹</span>
+    </a>
+    <button class="btn" id="scamGoCheckBtn">🔍 تحقق من شخص</button>
+    <button class="btn secondary" id="scamGoReportBtn">🚩 بلّغ عن نصاب</button>`;
+  document.getElementById("scamGoCheckBtn").onclick = () => go("scamCheckForm", {}, "تحقق من شخص");
+  document.getElementById("scamGoReportBtn").onclick = () => go("scamReport", {}, "بلّغ عن نصاب");
+}
+
+function scamPhoneNeedsCountry(idPrefix) {
+  const raw = document.getElementById(`${idPrefix}_phone`).value.trim();
+  const country = document.getElementById(`${idPrefix}_phone_country`).dataset.value;
+  return !!raw && !country;
+}
+
+function viewScamCheckForm() {
+  elApp.innerHTML = `
+    ${scamFieldsHtml("chk")}
+    <button class="btn" id="scamCheckBtn">تحقق الآن</button>
+    <div id="scamResults"></div>`;
+  wireScamPhoneToggle("chk");
+  document.getElementById("scamCheckBtn").onclick = async () => {
+    if (scamPhoneNeedsCountry("chk")) { toast("⚠️ اختر الدولة (جزائري أو روسي) لرقم الهاتف"); return; }
+    const fields = readScamFields("chk");
+    if (!Object.values(fields).some(Boolean)) { toast("⚠️ عبّي معلومة واحدة على الأقل"); return; }
+    const results = document.getElementById("scamResults");
+    results.innerHTML = `<div class="empty">جارِ البحث...</div>`;
+    try {
+      const res = await api("/api/scam/search", { method: "POST", body: JSON.stringify(fields) });
+      renderScamResults(res);
+    } catch (e) { results.innerHTML = ""; toast("⚠️ " + e.message); }
+  };
+}
+
+function renderScamResults(res) {
+  const results = document.getElementById("scamResults");
+  if (res.mode === "none") {
+    results.innerHTML = `<div class="empty">${emptyIllus()}لا توجد بلاغات مطابقة — لكن هذا لا يعني أن الشخص موثوق، ابقَ حذرًا دائمًا</div>`;
+    return;
+  }
+  if (res.mode === "guarantor") {
+    const g = res.results[0];
+    results.innerHTML = `
+      <div class="guarantor-result">
+        <span class="row-icon t-green"><svg class="icon-svg"><use href="#i-check"/></svg></span>
+        <div class="feature-text">
+          <span class="label">✅ هذا شخص ضامن موثوق</span>
+          <span class="feature-count">${esc(g.full_name)} — ${esc(g.full_name_ru)}</span>
+          <span class="feature-count ltr-field" dir="ltr">${esc(g.phone)}</span>
+        </div>
+      </div>`;
+    return;
+  }
+  if (res.mode === "candidates") {
+    results.innerHTML = `<div class="section-title">نتائج مطابقة للاسم — اختر الشخص الصحيح</div>` +
+      res.results.map(c => `
+        <div class="list-item" data-id="${c.id}">
+          <span class="row-icon t-danger"><svg class="icon-svg"><use href="#i-shield"/></svg></span>
+          <span class="title">${esc(c.full_name)} ${esc(c.surname)}${c.date_of_birth ? " — " + esc(c.date_of_birth) : ""}</span>
+          <span class="chevron">‹</span>
+        </div>`).join("");
+    results.querySelectorAll(".list-item").forEach(el => {
+      el.onclick = async () => {
+        try {
+          const detail = await api(`/api/scam/report/${el.dataset.id}`);
+          showScamDetail(detail);
+        } catch (e) { toast("⚠️ " + e.message); }
+      };
+    });
+    return;
+  }
+  results.innerHTML = `<div class="section-title">⚠️ تم العثور على ${res.results.length} بلاغ</div>`;
+  res.results.forEach(r => {
+    const card = document.createElement("div");
+    card.className = "list-item";
+    card.innerHTML = `
+      <span class="row-icon t-danger"><svg class="icon-svg"><use href="#i-shield"/></svg></span>
+      <span class="title">${esc(r.full_name)} ${esc(r.surname)}</span>
+      <span class="chevron">‹</span>`;
+    card.onclick = () => showScamDetail(r);
+    results.appendChild(card);
+  });
+}
+
+function showScamDetail(r) {
+  const photosHtml = (r.photos || []).map(p => `<img src="/api/photo/${p}">`).join("");
+  const wrap = showDetail(`
+    ${photosHtml}
+    <h2>⚠️ ${esc(r.full_name)} ${esc(r.surname)}</h2>
+    ${r.full_name_ru ? `<div class="detail-row"><b>بالروسية:</b> ${esc(r.full_name_ru)}</div>` : ""}
+    <div class="detail-row"><b>تاريخ الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
+    <div class="detail-row"><b>معرّف تيليجرام:</b> ${esc(r.telegram_user_id || "—")}</div>
+    <div class="detail-row"><b>الهاتف:</b> ${esc(r.phone || "—")}</div>
+    <div class="detail-row"><b>CCP:</b> ${esc(r.ccp || "—")}</div>
+    <div class="detail-row"><b>المفتاح/RIP:</b> ${esc(r.cle_rip || "—")}</div>
+    <div class="detail-row"><b>البطاقة:</b> ${esc(r.card || "—")}</div>
+    <div class="detail-row"><b>جواز السفر:</b> ${esc(r.passport || "—")}</div>
+    <div class="detail-row"><b>سبب البلاغ:</b> ${esc(r.reason)}</div>
+    <div class="scam-access-box">
+      <textarea id="scamAccessReason" placeholder="اختياري: لماذا تريد التفاصيل الكاملة؟"></textarea>
+      <button class="btn secondary" id="scamAccessBtn">🔓 طلب رؤية التفاصيل الكاملة</button>
+    </div>`);
+  wrap.querySelector("#scamAccessBtn").onclick = async () => {
+    try {
+      await api("/api/scam/request_access", {
+        method: "POST",
+        body: JSON.stringify({ report_id: r.id, reason: wrap.querySelector("#scamAccessReason").value.trim() }),
+      });
+      toast("✅ تم إرسال طلبك للإدارة");
+      wrap.querySelector("#scamAccessBtn").disabled = true;
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+function viewScamReport() {
+  elApp.innerHTML = `
+    ${scamFieldsHtml("rep")}
+    <div class="form-group"><label>سبب البلاغ (مطلوب)</label><textarea id="rep_reason" placeholder="اشرح ماذا حدث بالتفصيل..."></textarea></div>
+    <div class="form-group"><label>صور إثبات (اختياري)</label><div class="photo-slots" id="scamPhotoSlots"></div></div>
+    <button class="btn" id="scamReportSubmit">إرسال البلاغ</button>`;
+  wireScamPhoneToggle("rep");
+  const photos = [];
+  const slotsEl = document.getElementById("scamPhotoSlots");
+  for (let i = 0; i < 3; i++) slotsEl.appendChild(photoSlot(fid => photos.push(fid)));
+  document.getElementById("scamReportSubmit").onclick = async () => {
+    if (scamPhoneNeedsCountry("rep")) { toast("⚠️ اختر الدولة (جزائري أو روسي) لرقم الهاتف"); return; }
+    const fields = readScamFields("rep");
+    const reason = document.getElementById("rep_reason").value.trim();
+    if (!Object.values(fields).some(Boolean)) { toast("⚠️ عبّي معلومة واحدة على الأقل عن الشخص"); return; }
+    if (!reason) { toast("⚠️ يرجى ذكر سبب البلاغ"); return; }
+    try {
+      await api("/api/scam/report", { method: "POST", body: JSON.stringify({ ...fields, reason, photos }) });
+      successPulse();
+      toast("✅ تم استلام بلاغك، بانتظار المراجعة");
       back();
     } catch (e) { toast("⚠️ " + e.message); }
   };
@@ -661,7 +982,7 @@ function viewInquiry() {
 function showDetail(html) {
   const wrap = document.createElement("div");
   wrap.className = "detail";
-  wrap.innerHTML = `<div class="detail-card"><button class="detail-close">✕</button><div>${html}</div></div>`;
+  wrap.innerHTML = `<div class="detail-card"><button class="detail-close"><svg class="icon-svg"><use href="#i-close"/></svg></button><div>${html}</div></div>`;
   wrap.onclick = (e) => { if (e.target === wrap) wrap.remove(); };
   wrap.querySelector(".detail-close").onclick = () => wrap.remove();
   wrap.querySelectorAll(".detail-card img").forEach(img => {
@@ -669,12 +990,13 @@ function showDetail(html) {
     img.onclick = (e) => { e.stopPropagation(); openFullscreenImage(img.src); };
   });
   document.body.appendChild(wrap);
+  return wrap;
 }
 
 function openFullscreenImage(src) {
   const ov = document.createElement("div");
   ov.className = "img-fullscreen";
-  ov.innerHTML = `<button class="img-fullscreen-close">✕</button><img src="${src}">`;
+  ov.innerHTML = `<button class="img-fullscreen-close"><svg class="icon-svg"><use href="#i-close"/></svg></button><img src="${src}">`;
   ov.onclick = () => ov.remove();
   document.body.appendChild(ov);
 }
@@ -693,10 +1015,13 @@ const VIEWS = {
   travel: viewTravel,
   travelPost: viewTravelPost,
   inquiry: viewInquiry,
+  scamCheck: viewScamCheck,
+  scamCheckForm: viewScamCheckForm,
+  scamReport: viewScamReport,
 };
 
 (async () => {
   await loadMeta();
-  go("home", {}, "KaderDzbot");
+  go("home", {}, "");
   setActiveNav("home");
 })();

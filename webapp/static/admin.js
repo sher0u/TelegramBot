@@ -64,7 +64,7 @@ async function viewDashboard() {
       <div class="stat-grid">
         <div class="stat-box"><div class="num">${s.total}</div><div class="lbl">إجمالي المستخدمين</div></div>
         <div class="stat-box"><div class="num">${s.new_today}</div><div class="lbl">جدد اليوم</div></div>
-        <div class="stat-box"><div class="num">${s.pending_items + s.pending_listings + s.pending_travel + s.pending_inquiries}</div><div class="lbl">طلبات معلقة</div></div>
+        <div class="stat-box"><div class="num">${s.pending_items + s.pending_listings + s.pending_travel + s.pending_inquiries + s.pending_scam_reports}</div><div class="lbl">طلبات معلقة</div></div>
         <div class="stat-box"><div class="num">${s.approved_items + s.approved_listings + s.approved_travel}</div><div class="lbl">إعلانات منشورة</div></div>
       </div>`;
   } catch (e) {
@@ -76,8 +76,9 @@ async function viewDashboard() {
 // PENDING APPROVALS
 // ══════════════════════════════════════════════════════════════════════════
 
-const KIND_LABELS = { items: "🛒 إعلان سوق", listings: "🏠 إعلان سكن", travel: "🧳 رحلة", inquiries: "👥 استفسار جالية" };
-const KIND_SINGULAR = { items: "item", listings: "listing", travel: "travel", inquiries: "inquiry" };
+const KIND_LABELS = { items: "🛒 إعلان سوق", listings: "🏠 إعلان سكن", travel: "🧳 رحلة", inquiries: "👥 استفسار جالية", scam_reports: "🕵️ بلاغ شرلوك الجزائري", scam_access_requests: "🔓 طلب اطلاع كامل" };
+const KIND_SINGULAR = { items: "item", listings: "listing", travel: "travel", inquiries: "inquiry", scam_reports: "scam", scam_access_requests: "scam_access" };
+const NO_PUBLISH_KINDS = new Set(["scam_reports", "scam_access_requests"]);
 
 async function viewPending() {
   elApp.innerHTML = `<div id="pendingList"></div>`;
@@ -93,7 +94,8 @@ async function viewPending() {
       card.className = "pending-card";
       card.innerHTML = pendingCardBody(kind, it);
       list.appendChild(card);
-      card.querySelector(".approve-publish").onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card, true);
+      const publishBtn = card.querySelector(".approve-publish");
+      if (publishBtn) publishBtn.onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card, true);
       card.querySelector(".approve-only").onclick = () => act("approve", KIND_SINGULAR[kind], it.id, card, false);
       card.querySelector(".reject").onclick = () => act("reject", KIND_SINGULAR[kind], it.id, card);
     }
@@ -119,12 +121,26 @@ function pendingCardBody(kind, it) {
     lines = `<div class="meta-line"><b>الاسم:</b> ${esc(it.name)} — <b>الهاتف:</b> ${esc(it.phone)}</div>
       <div class="meta-line"><b>الخدمة:</b> ${esc(it.service)}</div>
       <div class="meta-line"><b>ملاحظات:</b> ${esc(it.notes)}</div>`;
+  } else if (kind === "scam_reports") {
+    lines = `<div class="meta-line"><b>الاسم:</b> ${esc(it.full_name)} ${esc(it.surname)}</div>
+      <div class="meta-line"><b>بالروسية:</b> ${esc(it.full_name_ru || "—")}</div>
+      <div class="meta-line"><b>الهاتف:</b> ${esc(it.phone || "—")} — <b>CCP:</b> ${esc(it.ccp || "—")} — <b>المفتاح:</b> ${esc(it.cle_rip || "—")}</div>
+      <div class="meta-line"><b>البطاقة:</b> ${esc(it.card || "—")} — <b>الجواز:</b> ${esc(it.passport || "—")}</div>
+      <div class="meta-line"><b>Telegram ID:</b> ${esc(it.telegram_user_id || "—")} — <b>الميلاد:</b> ${esc(it.date_of_birth || "—")}</div>
+      <div class="meta-line"><b>السبب:</b> ${esc(it.reason)}</div>`;
+  } else if (kind === "scam_access_requests") {
+    lines = `<div class="meta-line"><b>report_id:</b> ${esc(it.report_id)}</div>
+      <div class="meta-line"><b>السبب:</b> ${esc(it.reason || "—")}</div>`;
   }
-  const poster = it.username ? `@${esc(it.username)}` : esc(it.first_name || "—");
-  return `${lines}<div class="meta-line"><b>المرسل:</b> ${poster}</div>
-    <button class="btn approve-publish" style="background:var(--success)">✅ قبول ونشر في المجموعات</button>
+  const poster = kind === "scam_access_requests"
+    ? (it.requester_username ? `@${esc(it.requester_username)}` : esc(it.requester_user_id))
+    : (it.username ? `@${esc(it.username)}` : esc(it.first_name || "—"));
+  const publishBtn = NO_PUBLISH_KINDS.has(kind) ? "" :
+    `<button class="btn approve-publish" style="background:var(--success)">✅ قبول ونشر في المجموعات</button>`;
+  return `${lines}<div class="meta-line"><b>${kind === "scam_access_requests" ? "الطالب" : "المرسل"}:</b> ${poster}</div>
+    ${publishBtn}
     <div class="btn-row">
-      <button class="btn approve-only secondary">✅ قبول فقط</button>
+      <button class="btn approve-only secondary">✅ ${NO_PUBLISH_KINDS.has(kind) ? "موافقة" : "قبول فقط"}</button>
       <button class="btn reject danger">❌ رفض</button>
     </div>`;
 }

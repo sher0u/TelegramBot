@@ -23,6 +23,7 @@ import content as C
 import keyboards as KB
 import inquiry_storage as INQS
 import marketplace_storage as MKT
+import scam_storage as SCAM
 import travel_storage as TRV
 from admin import get_admin_handlers
 from user_storage import (
@@ -53,6 +54,22 @@ _RM_TYPE, _RM_ROOM_TYPE, _RM_CITY_CHOICE, _RM_CITY_TEXT, _RM_PRICE, _RM_METRO, _
 
 # Travel post: route → date → flight → city → contact → note
 _TRV_ROUTE, _TRV_DATE, _TRV_FLIGHT, _TRV_CITY, _TRV_CONTACT, _TRV_NOTE = range(30, 36)
+
+# شرلوك الجزائري — check: free-text query → pick from name candidates
+_SCAM_CHECK_QUERY, _SCAM_CHECK_PICK = range(40, 42)
+
+# شرلوك الجزائري — report: name → 7 optional fields (looped) → reason → photo
+_SCAM_NAME, _SCAM_OPTIONAL, _SCAM_REASON, _SCAM_PHOTO = range(50, 54)
+
+SCAM_OPTIONAL_STEPS = [
+    ("surname",          "SCAM_REPORT_SURNAME"),
+    ("date_of_birth",    "SCAM_REPORT_DOB"),
+    ("telegram_user_id", "SCAM_REPORT_TGID"),
+    ("phone",            "SCAM_REPORT_PHONE"),
+    ("ccp",              "SCAM_REPORT_CCP"),
+    ("card",             "SCAM_REPORT_CARD"),
+    ("passport",         "SCAM_REPORT_PASSPORT"),
+]
 
 MD2 = ParseMode.MARKDOWN_V2
 
@@ -355,6 +372,28 @@ def _fmt_travel(post: dict) -> str:
     )
 
 
+_TRV_ROUTE_TOKENS = {"alg_to_msk": "alg_msk", "msk_to_alg": "msk_alg"}
+_TRV_TOKEN_ROUTES  = {v: k for k, v in _TRV_ROUTE_TOKENS.items()}
+
+
+async def _show_trv_browse(query, route: str, idx: int) -> None:
+    posts = TRV.get_approved_posts_by_route(route)
+    route_token = _TRV_ROUTE_TOKENS[route]
+    if not posts:
+        await query.edit_message_text(
+            C.TRV_BROWSE_EMPTY, parse_mode=MD2,
+            reply_markup=KB.trv_browse_empty_kb(route_token)
+        )
+        return
+    idx  = max(0, min(idx, len(posts) - 1))
+    post = posts[idx]
+    text = _fmt_travel(post) + f"\n━━━━━━━━━━━━━━━━━━━━━━\n📊 {idx+1}/{len(posts)}"
+    await query.edit_message_text(
+        text, parse_mode=MD2,
+        reply_markup=KB.trv_browse_kb(route_token, idx, len(posts), poster_user_id=post.get("user_id"))
+    )
+
+
 async def _send_travel_to_admin(context, post: dict) -> None:
     from admin import ADMINS
     fwd = INQUIRY_CHAT or (str(ADMINS[0]) if ADMINS else None)
@@ -511,6 +550,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif d == "how_to_get_tax_social":
         await query.edit_message_text(C.TAX_SOCIAL, parse_mode=MD2,
                                       reply_markup=KB.consult_back_kb("after_arrival"))
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # شرلوك الجزائري — menu entry
+    # ══════════════════════════════════════════════════════════════════════════
+
+    elif d == "scam_menu":
+        await query.edit_message_text(C.SCAM_MENU_TEXT, parse_mode=MD2,
+                                      reply_markup=KB.scam_menu_kb(), disable_web_page_preview=True)
 
     # ══════════════════════════════════════════════════════════════════════════
     # AVITO ALGERIA
@@ -1138,6 +1185,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(C.TRAVEL_MAIN, parse_mode=MD2,
                                       reply_markup=KB.travel_main_kb())
 
+    elif d in ("trv_browse_alg_msk", "trv_browse_msk_alg"):
+        route = "alg_to_msk" if d == "trv_browse_alg_msk" else "msk_to_alg"
+        context.user_data["trv_browse_idx"] = 0
+        await _show_trv_browse(query, route, 0)
+
+    elif d.startswith("trv_bnav_"):
+        rest = d[len("trv_bnav_"):]
+        route_token, idx_str = rest.rsplit("_", 1)
+        idx   = int(idx_str)
+        route = _TRV_TOKEN_ROUTES.get(route_token, "alg_to_msk")
+        context.user_data["trv_browse_idx"] = idx
+        await _show_trv_browse(query, route, idx)
+
     elif d == "trv_mylist":
         user  = update.effective_user
         posts = TRV.get_user_posts(user.id)
@@ -1289,6 +1349,81 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 pass
         else:
             await query.answer("الاستفسار غير موجود", show_alert=True)
+
+    # ── Admin: شرلوك الجزائري — report approval ────────────────────────────────
+    elif d.startswith("scam_app_"):
+        report_id = d[len("scam_app_"):]
+        report = SCAM.get_report_by_id(report_id)
+        if report:
+            SCAM.approve_report(report_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=report["reporter_user_id"], text=C.SCAM_APPROVED_NOTIFY, parse_mode=MD2,
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("البلاغ غير موجود", show_alert=True)
+
+    elif d.startswith("scam_rej_"):
+        report_id = d[len("scam_rej_"):]
+        report = SCAM.get_report_by_id(report_id)
+        if report:
+            SCAM.reject_report(report_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=report["reporter_user_id"], text=C.SCAM_REJECTED_NOTIFY, parse_mode=MD2,
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("البلاغ غير موجود", show_alert=True)
+
+    # ── Admin: شرلوك الجزائري — full-detail access requests ────────────────────
+    elif d.startswith("scam_acc_app_"):
+        req_id = d[len("scam_acc_app_"):]
+        req = SCAM.get_access_request_by_id(req_id)
+        report = SCAM.get_report_by_id(req["report_id"]) if req else None
+        if req and report:
+            SCAM.approve_access(req_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            detail_msg = (
+                "🔓 *تمت الموافقة على طلب الاطلاع الكامل*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📛 *الاسم:* {_esc(report['full_name'])} {_esc(report['surname'])}\n"
+                f"🎂 *الميلاد:* {_esc(report['date_of_birth'])}\n"
+                f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
+                f"📱 *الهاتف:* {_esc(report['phone'])}\n"
+                f"🏦 *CCP:* {_esc(report['ccp'])}\n"
+                f"💳 *البطاقة:* {_esc(report['card'])}\n"
+                f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+                f"⚠️ *السبب:* {_esc(report['reason'])}"
+            )
+            try:
+                await context.bot.send_message(
+                    chat_id=req["requester_user_id"], text=detail_msg, parse_mode=MD2,
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الطلب غير موجود", show_alert=True)
+
+    elif d.startswith("scam_acc_rej_"):
+        req_id = d[len("scam_acc_rej_"):]
+        req = SCAM.get_access_request_by_id(req_id)
+        if req:
+            SCAM.reject_access(req_id)
+            await query.edit_message_reply_markup(reply_markup=None)
+            try:
+                await context.bot.send_message(
+                    chat_id=req["requester_user_id"], text=C.SCAM_ACCESS_REJECTED_NOTIFY, parse_mode=MD2,
+                )
+            except Exception:
+                pass
+        else:
+            await query.answer("الطلب غير موجود", show_alert=True)
 
     # ── Unknown ───────────────────────────────────────────────────────────────
     else:
@@ -1709,6 +1844,229 @@ async def trv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# شرلوك الجزائري — CHECK conversation
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _fmt_scam_result(r: dict) -> str:
+    return (
+        f"⚠️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎂 *الميلاد:* {_esc(r.get('date_of_birth') or '—')}\n"
+        f"🆔 *Telegram ID:* {_esc(r.get('telegram_user_id') or '—')}\n"
+        f"📱 *الهاتف:* {_esc(r.get('phone') or '—')}\n"
+        f"🏦 *CCP:* {_esc(r.get('ccp') or '—')}\n"
+        f"💳 *البطاقة:* {_esc(r.get('card') or '—')}\n"
+        f"🛂 *الجواز:* {_esc(r.get('passport') or '—')}\n"
+        f"⚠️ *السبب:* {_esc(r['reason'])}\n\n"
+        "_للاطلاع على التفاصيل الكاملة \\(غير مموّهة\\)، استخدم التطبيق المصغر وزر «طلب رؤية التفاصيل الكاملة»\\._"
+    )
+
+
+async def scam_check_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await _conv_edit(query, context, C.SCAM_CHECK_PROMPT, KB.scam_cancel_kb())
+    return _SCAM_CHECK_QUERY
+
+
+async def scam_check_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    text = update.message.text.strip()
+    if not SCAM.check_and_bump_quota(user.id):
+        await _conv_reply(update, context, C.SCAM_CHECK_QUOTA, KB.scam_menu_kb())
+        return ConversationHandler.END
+    res = SCAM.smart_search(text)
+    if res["mode"] == "none":
+        await _conv_reply(update, context, C.SCAM_CHECK_NONE, KB.scam_menu_kb())
+        return ConversationHandler.END
+    if res["mode"] == "candidates":
+        context.user_data["scam_candidates"] = res["results"]
+        lines = "\n".join(
+            f"{i + 1}\\. {_esc(c['full_name'])} {_esc(c['surname'])}" for i, c in enumerate(res["results"])
+        )
+        await _conv_reply(update, context, f"{C.SCAM_CHECK_PICK_PROMPT}\n\n{lines}", KB.scam_cancel_kb())
+        return _SCAM_CHECK_PICK
+    await _conv_reply(update, context, _fmt_scam_result(res["results"][0]), KB.scam_menu_kb())
+    return ConversationHandler.END
+
+
+async def scam_check_pick(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    candidates = context.user_data.get("scam_candidates", [])
+    if not text.isdigit() or not (1 <= int(text) <= len(candidates)):
+        await _conv_reply(update, context, C.SCAM_CHECK_PICK_RETRY, KB.scam_cancel_kb())
+        return _SCAM_CHECK_PICK
+    chosen = candidates[int(text) - 1]
+    detail = SCAM.get_report_detail(chosen["id"])
+    msg = _fmt_scam_result(detail) if detail else C.SCAM_CHECK_NONE
+    context.user_data.pop("scam_candidates", None)
+    await _conv_reply(update, context, msg, KB.scam_menu_kb())
+    return ConversationHandler.END
+
+
+async def scam_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.callback_query:
+        await update.callback_query.answer()
+        await _conv_edit(update.callback_query, context, C.SCAM_CANCELLED, KB.scam_menu_kb())
+    else:
+        await _conv_reply(update, context, C.SCAM_CANCELLED, KB.scam_menu_kb())
+    for key in ("scam_step", "scam_candidates", "scam_full_name", "scam_reason", "scam_photo",
+                *(f"scam_{k}" for k, _ in SCAM_OPTIONAL_STEPS)):
+        context.user_data.pop(key, None)
+    return ConversationHandler.END
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# شرلوك الجزائري — REPORT conversation
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def scam_report_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await _conv_edit(query, context, C.SCAM_REPORT_NAME, KB.scam_cancel_kb())
+    return _SCAM_NAME
+
+
+async def _scam_prompt_optional(update, context, via_callback: bool) -> None:
+    idx = context.user_data["scam_step"]
+    _, content_key = SCAM_OPTIONAL_STEPS[idx]
+    text = getattr(C, content_key)
+    if via_callback:
+        await _conv_edit(update.callback_query, context, text, KB.scam_skip_kb())
+    else:
+        await _conv_reply(update, context, text, KB.scam_skip_kb())
+
+
+async def scam_get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["scam_full_name"] = update.message.text.strip()
+    context.user_data["scam_step"] = 0
+    await _scam_prompt_optional(update, context, via_callback=False)
+    return _SCAM_OPTIONAL
+
+
+async def _scam_advance_optional(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool) -> int:
+    context.user_data["scam_step"] += 1
+    if context.user_data["scam_step"] >= len(SCAM_OPTIONAL_STEPS):
+        if via_callback:
+            await _conv_edit(update.callback_query, context, C.SCAM_REPORT_REASON, KB.scam_cancel_kb())
+        else:
+            await _conv_reply(update, context, C.SCAM_REPORT_REASON, KB.scam_cancel_kb())
+        return _SCAM_REASON
+    await _scam_prompt_optional(update, context, via_callback=via_callback)
+    return _SCAM_OPTIONAL
+
+
+async def scam_get_optional(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    idx = context.user_data["scam_step"]
+    key, _ = SCAM_OPTIONAL_STEPS[idx]
+    context.user_data[f"scam_{key}"] = update.message.text.strip()
+    return await _scam_advance_optional(update, context, via_callback=False)
+
+
+async def scam_skip_optional(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    idx = context.user_data["scam_step"]
+    key, _ = SCAM_OPTIONAL_STEPS[idx]
+    context.user_data[f"scam_{key}"] = ""
+    return await _scam_advance_optional(update, context, via_callback=True)
+
+
+async def scam_get_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["scam_reason"] = update.message.text.strip()
+    await _conv_reply(update, context, C.SCAM_REPORT_PHOTO, KB.scam_skip_photo_kb())
+    return _SCAM_PHOTO
+
+
+async def scam_get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["scam_photo"] = update.message.photo[-1].file_id if update.message.photo else None
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    await _scam_submit(update, context, via_callback=False)
+    return ConversationHandler.END
+
+
+async def scam_skip_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data["scam_photo"] = None
+    await _scam_submit(update, context, via_callback=True)
+    return ConversationHandler.END
+
+
+async def _scam_submit(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool) -> None:
+    user = update.effective_user
+    ud = context.user_data
+    report = SCAM.add_report(
+        reporter_user_id=user.id, reporter_username=user.username, reporter_first_name=user.first_name,
+        full_name=ud.get("scam_full_name", ""), surname=ud.get("scam_surname", ""),
+        date_of_birth=ud.get("scam_date_of_birth", ""), telegram_user_id=ud.get("scam_telegram_user_id", ""),
+        phone=ud.get("scam_phone", ""), ccp=ud.get("scam_ccp", ""), card=ud.get("scam_card", ""),
+        passport=ud.get("scam_passport", ""), reason=ud.get("scam_reason", ""),
+        photos=[ud["scam_photo"]] if ud.get("scam_photo") else [],
+    )
+    if via_callback:
+        await _conv_edit(update.callback_query, context, C.SCAM_REPORT_PENDING, KB.back_to_main_kb())
+    else:
+        chat_id = update.effective_chat.id
+        prev_id = context.user_data.get("conv_msg_id")
+        if prev_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=chat_id, message_id=prev_id,
+                    text=C.SCAM_REPORT_PENDING, parse_mode=MD2, reply_markup=KB.back_to_main_kb(),
+                )
+            except Exception:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=C.SCAM_REPORT_PENDING, parse_mode=MD2, reply_markup=KB.back_to_main_kb(),
+                )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id, text=C.SCAM_REPORT_PENDING, parse_mode=MD2, reply_markup=KB.back_to_main_kb(),
+            )
+    await _send_scam_report_to_admin(context, report)
+    for key in ("scam_step", "scam_full_name", "scam_reason", "scam_photo",
+                *(f"scam_{k}" for k, _ in SCAM_OPTIONAL_STEPS)):
+        context.user_data.pop(key, None)
+
+
+async def _send_scam_report_to_admin(context, report: dict) -> None:
+    from admin import ADMINS
+    fwd = INQUIRY_CHAT or (str(ADMINS[0]) if ADMINS else None)
+    if not fwd:
+        return
+    reporter = f"@{_esc(report['reporter_username'])}" if report.get("reporter_username") else _esc(report.get("reporter_first_name"))
+    msg = (
+        "🕵️ *بلاغ جديد — شرلوك الجزائري*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 *المُبلِّغ:* {_esc(report['reporter_first_name'])} \\({reporter}\\)\n"
+        f"🆔 *ID:* `{report['reporter_user_id']}`\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📛 *الاسم الكامل:* {_esc(report['full_name'])}\n"
+        f"👪 *اللقب:* {_esc(report['surname'] or '—')}\n"
+        f"🎂 *تاريخ الميلاد:* {_esc(report['date_of_birth'] or '—')}\n"
+        f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'] or '—')}\n"
+        f"📱 *الهاتف:* {_esc(report['phone'] or '—')}\n"
+        f"🏦 *CCP:* {_esc(report['ccp'] or '—')}\n"
+        f"💳 *البطاقة:* {_esc(report['card'] or '—')}\n"
+        f"🛂 *جواز السفر:* {_esc(report['passport'] or '—')}\n"
+        f"⚠️ *السبب:* {_esc(report['reason'])}\n"
+        f"🆔 *report\\_id:* `{report['id']}`"
+    )
+    kb = KB.admin_approve_scam_kb(report["id"])
+    try:
+        if report.get("photos"):
+            await context.bot.send_photo(chat_id=int(fwd), photo=report["photos"][0],
+                                         caption=msg, parse_mode=MD2, reply_markup=kb)
+        else:
+            await context.bot.send_message(chat_id=int(fwd), text=msg, parse_mode=MD2, reply_markup=kb)
+    except Exception as e:
+        logger.error("Failed to send scam report to admin: %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ERROR HANDLER
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -1825,6 +2183,37 @@ def main() -> None:
             per_user=True, per_chat=True,
         )
 
+    # ── شرلوك الجزائري: check ConversationHandler ─────────────────────────────
+    _scam_cxl = CallbackQueryHandler(scam_cancel, pattern="^scam_cancel_post$")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        scam_check_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(scam_check_start, pattern="^scam_check_start$")],
+            states={
+                _SCAM_CHECK_QUERY: [_scam_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, scam_check_query)],
+                _SCAM_CHECK_PICK:  [_scam_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, scam_check_pick)],
+            },
+            fallbacks=[CommandHandler("cancel", scam_cancel)],
+            per_user=True, per_chat=True,
+        )
+
+    # ── شرلوك الجزائري: report ConversationHandler ────────────────────────────
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        scam_report_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(scam_report_start, pattern="^scam_report_start$")],
+            states={
+                _SCAM_NAME:     [_scam_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, scam_get_name)],
+                _SCAM_OPTIONAL: [_scam_cxl, CallbackQueryHandler(scam_skip_optional, pattern="^scam_skip_field$"),
+                                 MessageHandler(filters.TEXT & ~filters.COMMAND, scam_get_optional)],
+                _SCAM_REASON:   [_scam_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, scam_get_reason)],
+                _SCAM_PHOTO:    [_scam_cxl, CallbackQueryHandler(scam_skip_photo, pattern="^scam_skip_photo$"),
+                                 MessageHandler(filters.PHOTO, scam_get_photo)],
+            },
+            fallbacks=[CommandHandler("cancel", scam_cancel)],
+            per_user=True, per_chat=True,
+        )
+
     # ── Register handlers (order matters!) ────────────────────────────────────
     for h in get_admin_handlers():
         app.add_handler(h)
@@ -1833,6 +2222,8 @@ def main() -> None:
     app.add_handler(roommate_conv)
     app.add_handler(travel_conv)
     app.add_handler(inquiry_conv)
+    app.add_handler(scam_check_conv)
+    app.add_handler(scam_report_conv)
 
     app.add_handler(CommandHandler("start",   start))
     app.add_handler(CommandHandler("help",    help_cmd))

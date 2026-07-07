@@ -17,6 +17,7 @@ import hmac
 import os
 import re
 import time
+from datetime import datetime, timedelta
 from urllib.parse import parse_qsl
 
 import httpx
@@ -30,6 +31,7 @@ import content as C
 import home_banner_storage as BANNER
 import inquiry_storage as INQS
 import marketplace_storage as MKT
+import scam_storage as SCAM
 import travel_storage as TRV
 import user_storage as US
 
@@ -332,6 +334,19 @@ def get_home_banner():
     return {"text": BANNER.get_active_banner()}
 
 
+@app.get("/api/stats")
+def get_stats():
+    week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+    items, listings, posts = MKT.get_approved_items(), MKT.get_approved_listings(), TRV.get_approved_posts()
+    count = sum(1 for rec in items + listings + posts if rec.get("created_at", "") >= week_ago)
+    return {
+        "posts_this_week": count,
+        "avito_count": len(items),
+        "roommate_count": len(listings),
+        "travel_count": len(posts),
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Submission forms
 # ══════════════════════════════════════════════════════════════════════════════
@@ -516,6 +531,142 @@ async def submit_inquiry(body: InquirySubmit, x_telegram_init_data: str = Header
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# شرلوك الجزائري — scam/thief check & report
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ScamSearch(BaseModel):
+    full_name: str = ""
+    surname: str = ""
+    full_name_ru: str = ""
+    date_of_birth: str = ""
+    telegram_user_id: str = ""
+    phone: str = ""
+    ccp: str = ""
+    cle_rip: str = ""
+    card: str = ""
+    passport: str = ""
+
+
+class ScamReport(BaseModel):
+    full_name: str = ""
+    surname: str = ""
+    full_name_ru: str = ""
+    date_of_birth: str = ""
+    telegram_user_id: str = ""
+    phone: str = ""
+    ccp: str = ""
+    cle_rip: str = ""
+    card: str = ""
+    passport: str = ""
+    reason: str
+    photos: list[str] = []
+
+
+class ScamAccessRequest(BaseModel):
+    report_id: str
+    reason: str = ""
+
+
+def _scam_report_kb(report_id: str):
+    return {"inline_keyboard": [[
+        {"text": "✅ موافقة ونشر", "callback_data": f"scam_app_{report_id}"},
+        {"text": "❌ رفض",         "callback_data": f"scam_rej_{report_id}"},
+    ]]}
+
+
+def _scam_access_kb(req_id: str):
+    return {"inline_keyboard": [[
+        {"text": "✅ منح الوصول", "callback_data": f"scam_acc_app_{req_id}"},
+        {"text": "❌ رفض",        "callback_data": f"scam_acc_rej_{req_id}"},
+    ]]}
+
+
+@app.post("/api/scam/search")
+def scam_search(body: ScamSearch, x_telegram_init_data: str = Header(default="")):
+    user = _current_user(x_telegram_init_data)
+    if not SCAM.check_and_bump_quota(user["id"]):
+        raise HTTPException(429, f"لقد تجاوزت الحد الأقصى ({SCAM.DAILY_SEARCH_LIMIT} عمليات بحث يوميًا)")
+    return SCAM.search_reports(body.model_dump())
+
+
+@app.get("/api/scam/report/{report_id}")
+def scam_report_detail(report_id: str, x_telegram_init_data: str = Header(default="")):
+    _current_user(x_telegram_init_data)
+    detail = SCAM.get_report_detail(report_id)
+    if not detail:
+        raise HTTPException(404, "not found")
+    return detail
+
+
+@app.post("/api/scam/report")
+async def scam_submit_report(body: ScamReport, x_telegram_init_data: str = Header(default="")):
+    user = _current_user(x_telegram_init_data)
+    username_part = f"@{_esc(user.get('username'))}" if user.get("username") else "—"
+    report = SCAM.add_report(
+        reporter_user_id=user["id"], reporter_username=user.get("username"),
+        reporter_first_name=user.get("first_name"),
+        full_name=body.full_name, surname=body.surname, full_name_ru=body.full_name_ru,
+        date_of_birth=body.date_of_birth,
+        telegram_user_id=body.telegram_user_id, phone=body.phone, ccp=body.ccp, cle_rip=body.cle_rip,
+        card=body.card, passport=body.passport, reason=body.reason, photos=body.photos,
+    )
+    msg = (
+        "🕵️ *بلاغ جديد — شرلوك الجزائري \\(عبر الواجهة\\)*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 *المُبلِّغ:* {_esc(user.get('first_name'))} \\({username_part}\\)\n"
+        f"🆔 *ID:* `{user['id']}`\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📛 *الاسم الكامل:* {_esc(report['full_name'])}\n"
+        f"👪 *اللقب:* {_esc(report['surname'])}\n"
+        f"🇷🇺 *الاسم بالروسية:* {_esc(report['full_name_ru'])}\n"
+        f"🎂 *تاريخ الميلاد:* {_esc(report['date_of_birth'])}\n"
+        f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
+        f"📱 *الهاتف:* {_esc(report['phone'])}\n"
+        f"🏦 *CCP:* {_esc(report['ccp'])}\n"
+        f"🔑 *المفتاح/RIP:* {_esc(report['cle_rip'])}\n"
+        f"💳 *البطاقة:* {_esc(report['card'])}\n"
+        f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+        f"⚠️ *السبب:* {_esc(report['reason'])}\n"
+        f"🆔 *report\\_id:* `{report['id']}`"
+    )
+    fwd = _fwd_chat()
+    if fwd:
+        if report["photos"]:
+            await _tg_send_photo(int(fwd), report["photos"][0], msg, _scam_report_kb(report["id"]))
+        else:
+            await _tg_send_message(int(fwd), msg, _scam_report_kb(report["id"]))
+    return {"ok": True, "id": report["id"]}
+
+
+@app.post("/api/scam/request_access")
+async def scam_request_access(body: ScamAccessRequest, x_telegram_init_data: str = Header(default="")):
+    user = _current_user(x_telegram_init_data)
+    report = SCAM.get_report_by_id(body.report_id)
+    if not report or report["status"] != "approved":
+        raise HTTPException(404, "not found")
+    username_part = f"@{_esc(user.get('username'))}" if user.get("username") else "—"
+    req = SCAM.add_access_request(
+        report_id=body.report_id, requester_user_id=user["id"],
+        requester_username=user.get("username"), reason=body.reason,
+    )
+    msg = (
+        "🔓 *طلب اطلاع على تفاصيل بلاغ كاملة*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 *الطالب:* {_esc(user.get('first_name'))} \\({username_part}\\)\n"
+        f"🆔 *ID:* `{user['id']}`\n"
+        f"💬 *السبب:* {_esc(req['reason'])}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 *report\\_id:* `{report['id']}`\n"
+        f"📛 *بخصوص:* {_esc(report['full_name'])} {_esc(report['surname'])}\n"
+        f"🆔 *request\\_id:* `{req['id']}`"
+    )
+    fwd = _fwd_chat()
+    if fwd:
+        await _tg_send_message(int(fwd), msg, _scam_access_kb(req["id"]))
+    return {"ok": True, "id": req["id"]}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Admin dashboard
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -536,6 +687,7 @@ def admin_stats(x_telegram_init_data: str = Header(default="")):
         "pending_listings": len([l for l in MKT.get_all_listings() if l["status"] == "pending"]),
         "pending_travel": len([p for p in TRV.get_all_posts() if p["status"] == "pending"]),
         "pending_inquiries": len([i for i in INQS.get_all() if i["status"] == "pending"]),
+        "pending_scam_reports": len(SCAM.get_pending_reports()),
         "approved_items": len(MKT.get_approved_items()),
         "approved_listings": len(MKT.get_approved_listings()),
         "approved_travel": len(TRV.get_approved_posts()),
@@ -582,6 +734,8 @@ def admin_pending(x_telegram_init_data: str = Header(default="")):
         "listings": [l for l in MKT.get_all_listings() if l["status"] == "pending"],
         "travel": [p for p in TRV.get_all_posts() if p["status"] == "pending"],
         "inquiries": [i for i in INQS.get_all() if i["status"] == "pending"],
+        "scam_reports": SCAM.get_pending_reports(),
+        "scam_access_requests": [a for a in SCAM.get_all_access_requests() if a["status"] == "pending"],
     }
 
 
@@ -650,6 +804,33 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
             text = (f"👥 *استفسار من الجالية*\n📛 {_esc(item['name'])}\n🎯 {_esc(item['service'])}\n"
                     f"💬 {_esc(item['notes'])}")
             await _notify_groups(text, item["user_id"])
+    elif body.kind == "scam":
+        report = SCAM.get_report_by_id(body.id)
+        if not report:
+            raise HTTPException(404, "not found")
+        SCAM.approve_report(body.id)
+        await _tg_send_message(report["reporter_user_id"], C.SCAM_APPROVED_NOTIFY)
+        # Never auto-publish scam reports to groups — approval only makes it searchable in-app.
+    elif body.kind == "scam_access":
+        req = SCAM.get_access_request_by_id(body.id)
+        if not req:
+            raise HTTPException(404, "not found")
+        report = SCAM.get_report_by_id(req["report_id"])
+        SCAM.approve_access(body.id)
+        if report:
+            msg = (
+                "🔓 *تمت الموافقة على طلب الاطلاع الكامل*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📛 *الاسم:* {_esc(report['full_name'])} {_esc(report['surname'])}\n"
+                f"🎂 *الميلاد:* {_esc(report['date_of_birth'])}\n"
+                f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
+                f"📱 *الهاتف:* {_esc(report['phone'])}\n"
+                f"🏦 *CCP:* {_esc(report['ccp'])}\n"
+                f"💳 *البطاقة:* {_esc(report['card'])}\n"
+                f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+                f"⚠️ *السبب:* {_esc(report['reason'])}"
+            )
+            await _tg_send_message(req["requester_user_id"], msg)
     else:
         raise HTTPException(400, "unknown kind")
     return {"ok": True}
@@ -678,6 +859,16 @@ async def admin_reject(body: ApproveBody, x_telegram_init_data: str = Header(def
         if item:
             INQS.delete_inquiry(body.id)
             await _tg_send_message(item["user_id"], C.INQ_REJECTED_NOTIFY)
+    elif body.kind == "scam":
+        report = SCAM.get_report_by_id(body.id)
+        if report:
+            SCAM.reject_report(body.id)
+            await _tg_send_message(report["reporter_user_id"], C.SCAM_REJECTED_NOTIFY)
+    elif body.kind == "scam_access":
+        req = SCAM.get_access_request_by_id(body.id)
+        if req:
+            SCAM.reject_access(body.id)
+            await _tg_send_message(req["requester_user_id"], C.SCAM_ACCESS_REJECTED_NOTIFY)
     else:
         raise HTTPException(400, "unknown kind")
     return {"ok": True}

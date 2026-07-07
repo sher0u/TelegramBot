@@ -53,6 +53,9 @@ def save_all_posts(posts: list) -> None:
 def get_approved_posts() -> list:
     return [p for p in get_all_posts() if p["status"] == "approved"]
 
+def get_approved_posts_by_route(route: str) -> list:
+    return [p for p in get_approved_posts() if p["route"] == route]
+
 def get_post_by_id(post_id: str) -> dict | None:
     return next((p for p in get_all_posts() if p["id"] == post_id), None)
 
