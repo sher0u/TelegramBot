@@ -841,10 +841,35 @@ function viewScamCheck() {
       <span class="feature-text"><span class="label">🛡️ ضامن موثوق</span><span class="feature-count">لتفادي أي خطر، تواصل معي شخصيًا لإتمام التحويل بأمان</span></span>
       <span class="chevron">‹</span>
     </a>
-    <button class="btn" id="scamGoCheckBtn">🔍 تحقق من شخص</button>
+    <button class="btn" id="scamGoQuickBtn">🔍 بحث سريع</button>
+    <button class="btn secondary" id="scamGoFullBtn">🕵️ بحث تفصيلي كمحقق</button>
     <button class="btn secondary" id="scamGoReportBtn">🚩 بلّغ عن نصاب</button>`;
-  document.getElementById("scamGoCheckBtn").onclick = () => go("scamCheckForm", {}, "تحقق من شخص");
+  document.getElementById("scamGoQuickBtn").onclick = () => go("scamQuickSearch", {}, "🔍 بحث سريع");
+  document.getElementById("scamGoFullBtn").onclick = () => go("scamCheckForm", {}, "🕵️ بحث تفصيلي");
   document.getElementById("scamGoReportBtn").onclick = () => go("scamReport", {}, "بلّغ عن نصاب");
+}
+
+function viewScamQuickSearch() {
+  elApp.innerHTML = `
+    <div class="form-group">
+      <label>اكتب أي معلومة تعرفها عن الشخص</label>
+      <input id="quickQuery" placeholder="اسم، رقم هاتف، CCP، جواز سفر، معرّف تيليجرام...">
+    </div>
+    <button class="btn" id="quickSearchBtn">تحقق الآن</button>
+    <div id="scamResults"></div>`;
+  const input = document.getElementById("quickQuery");
+  const run = async () => {
+    const q = input.value.trim();
+    if (!q) { toast("⚠️ اكتب معلومة واحدة على الأقل للبحث"); return; }
+    const results = document.getElementById("scamResults");
+    results.innerHTML = `<div class="empty">جارِ البحث...</div>`;
+    try {
+      const res = await api("/api/scam/search", { method: "POST", body: JSON.stringify({ query: q }) });
+      renderScamResults(res);
+    } catch (e) { results.innerHTML = ""; toast("⚠️ " + e.message); }
+  };
+  document.getElementById("quickSearchBtn").onclick = run;
+  input.onkeydown = (e) => { if (e.key === "Enter") run(); };
 }
 
 function scamPhoneNeedsCountry(idPrefix) {
@@ -855,6 +880,7 @@ function scamPhoneNeedsCountry(idPrefix) {
 
 function viewScamCheckForm() {
   elApp.innerHTML = `
+    <div class="section-title">🕵️ عبّي كل معلومة تعرفها عن الشخص لتحقق دقيق</div>
     ${scamFieldsHtml("chk")}
     <button class="btn" id="scamCheckBtn">تحقق الآن</button>
     <div id="scamResults"></div>`;
@@ -1016,6 +1042,7 @@ const VIEWS = {
   travelPost: viewTravelPost,
   inquiry: viewInquiry,
   scamCheck: viewScamCheck,
+  scamQuickSearch: viewScamQuickSearch,
   scamCheckForm: viewScamCheckForm,
   scamReport: viewScamReport,
 };

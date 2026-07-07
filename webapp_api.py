@@ -535,6 +535,7 @@ async def submit_inquiry(body: InquirySubmit, x_telegram_init_data: str = Header
 # ══════════════════════════════════════════════════════════════════════════════
 
 class ScamSearch(BaseModel):
+    query: str = ""
     full_name: str = ""
     surname: str = ""
     full_name_ru: str = ""
@@ -586,7 +587,11 @@ def scam_search(body: ScamSearch, x_telegram_init_data: str = Header(default="")
     user = _current_user(x_telegram_init_data)
     if not SCAM.check_and_bump_quota(user["id"]):
         raise HTTPException(429, f"لقد تجاوزت الحد الأقصى ({SCAM.DAILY_SEARCH_LIMIT} عمليات بحث يوميًا)")
-    return SCAM.search_reports(body.model_dump())
+    if body.query.strip():
+        return SCAM.smart_search(body.query)
+    fields = body.model_dump()
+    fields.pop("query", None)
+    return SCAM.search_reports(fields)
 
 
 @app.get("/api/scam/report/{report_id}")
@@ -723,6 +728,49 @@ def admin_verify_user(body: VerifyBody, x_telegram_init_data: str = Header(defau
     if str(body.user_id) not in users:
         raise HTTPException(404, "user not found")
     US.set_verified(users, body.user_id, body.verified)
+    return {"ok": True}
+
+
+@app.get("/api/admin/scam/reports")
+def admin_scam_reports(x_telegram_init_data: str = Header(default="")):
+    _current_admin(x_telegram_init_data)
+    return SCAM.get_approved_reports()
+
+
+class ScamEditBody(BaseModel):
+    id: str
+    full_name: str = ""
+    surname: str = ""
+    full_name_ru: str = ""
+    date_of_birth: str = ""
+    telegram_user_id: str = ""
+    phone: str = ""
+    ccp: str = ""
+    cle_rip: str = ""
+    card: str = ""
+    passport: str = ""
+    reason: str = ""
+
+
+@app.post("/api/admin/scam/edit")
+def admin_scam_edit(body: ScamEditBody, x_telegram_init_data: str = Header(default="")):
+    _current_admin(x_telegram_init_data)
+    fields = body.model_dump()
+    report_id = fields.pop("id")
+    report = SCAM.update_report(report_id, fields)
+    if not report:
+        raise HTTPException(404, "not found")
+    return {"ok": True}
+
+
+class ScamDeleteBody(BaseModel):
+    id: str
+
+
+@app.post("/api/admin/scam/delete")
+def admin_scam_delete(body: ScamDeleteBody, x_telegram_init_data: str = Header(default="")):
+    _current_admin(x_telegram_init_data)
+    SCAM.delete_report(body.id)
     return {"ok": True}
 
 

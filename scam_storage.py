@@ -129,6 +129,20 @@ def reject_report(report_id: str) -> None:
 def delete_report(report_id: str) -> None:
     save_all_reports([r for r in get_all_reports() if r["id"] != report_id])
 
+EDITABLE_FIELDS = ["full_name", "surname", "full_name_ru", "date_of_birth", "telegram_user_id",
+                   "phone", "ccp", "cle_rip", "card", "passport", "reason"]
+
+def update_report(report_id: str, fields: dict) -> dict | None:
+    reports = get_all_reports()
+    for r in reports:
+        if r["id"] == report_id:
+            for k in EDITABLE_FIELDS:
+                if k in fields:
+                    r[k] = fields[k] or ""
+            save_all_reports(reports)
+            return r
+    return None
+
 def get_pending_reports() -> list:
     return [r for r in get_all_reports() if r["status"] == "pending"]
 

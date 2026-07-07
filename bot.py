@@ -2002,8 +2002,10 @@ async def _scam_submit(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     report = SCAM.add_report(
         reporter_user_id=user.id, reporter_username=user.username, reporter_first_name=user.first_name,
         full_name=ud.get("scam_full_name", ""), surname=ud.get("scam_surname", ""),
+        full_name_ru=ud.get("scam_full_name_ru", ""),
         date_of_birth=ud.get("scam_date_of_birth", ""), telegram_user_id=ud.get("scam_telegram_user_id", ""),
-        phone=ud.get("scam_phone", ""), ccp=ud.get("scam_ccp", ""), card=ud.get("scam_card", ""),
+        phone=ud.get("scam_phone", ""), ccp=ud.get("scam_ccp", ""), cle_rip=ud.get("scam_cle_rip", ""),
+        card=ud.get("scam_card", ""),
         passport=ud.get("scam_passport", ""), reason=ud.get("scam_reason", ""),
         photos=[ud["scam_photo"]] if ud.get("scam_photo") else [],
     )

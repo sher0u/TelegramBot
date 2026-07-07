@@ -53,9 +53,11 @@ async function viewDashboard() {
   elApp.innerHTML = `<div id="stats"></div>
     <div class="section-title">الإجراءات</div>
     <div class="list-item" id="pendingBtn"><span class="title">📋 الطلبات المعلقة</span><span class="chevron">‹</span></div>
+    <div class="list-item" id="scamManageBtn"><span class="title">🕵️ إدارة بلاغات شرلوك الجزائري</span><span class="chevron">‹</span></div>
     <div class="list-item" id="broadcastBtn"><span class="title">📤 بث رسالة</span><span class="chevron">‹</span></div>
     <div class="list-item" id="usersBtn"><span class="title">☑️ توثيق المستخدمين</span><span class="chevron">‹</span></div>`;
   document.getElementById("pendingBtn").onclick = () => go("pending", {}, "📋 الطلبات المعلقة");
+  document.getElementById("scamManageBtn").onclick = () => go("scamManage", {}, "🕵️ إدارة بلاغات شرلوك الجزائري");
   document.getElementById("broadcastBtn").onclick = () => go("broadcast", {}, "📤 بث رسالة");
   document.getElementById("usersBtn").onclick = () => go("users", {}, "☑️ توثيق المستخدمين");
   try {
@@ -155,6 +157,99 @@ async function act(action, kind, id, card, publish) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// SCAM REPORTS MANAGEMENT (approved records — edit / delete)
+// ══════════════════════════════════════════════════════════════════════════
+
+const SCAM_EDIT_FIELDS = [
+  ["full_name", "الاسم الكامل"], ["surname", "اللقب"], ["full_name_ru", "الاسم بالروسية"],
+  ["date_of_birth", "تاريخ الميلاد"], ["telegram_user_id", "معرّف تيليجرام"], ["phone", "الهاتف"],
+  ["ccp", "CCP"], ["cle_rip", "المفتاح / RIP"], ["card", "البطاقة"], ["passport", "جواز السفر"],
+];
+
+async function viewScamManage() {
+  elApp.innerHTML = `<div id="scamManageList"></div>`;
+  const list = document.getElementById("scamManageList");
+  const reports = await api("/api/admin/scam/reports");
+  if (!reports.length) { list.innerHTML = `<div class="empty">لا توجد بلاغات منشورة بعد</div>`; return; }
+  for (const r of reports) {
+    const card = document.createElement("div");
+    card.className = "pending-card";
+    card.innerHTML = scamManageCardBody(r);
+    list.appendChild(card);
+    wireScamManageCard(card, r);
+  }
+}
+
+function scamManageCardBody(r) {
+  return `
+    <div class="meta-line"><b>الاسم:</b> ${esc(r.full_name)} ${esc(r.surname)}</div>
+    <div class="meta-line"><b>بالروسية:</b> ${esc(r.full_name_ru || "—")}</div>
+    <div class="meta-line"><b>الهاتف:</b> ${esc(r.phone || "—")} — <b>CCP:</b> ${esc(r.ccp || "—")} — <b>المفتاح:</b> ${esc(r.cle_rip || "—")}</div>
+    <div class="meta-line"><b>البطاقة:</b> ${esc(r.card || "—")} — <b>الجواز:</b> ${esc(r.passport || "—")}</div>
+    <div class="meta-line"><b>Telegram ID:</b> ${esc(r.telegram_user_id || "—")} — <b>الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
+    <div class="meta-line"><b>السبب:</b> ${esc(r.reason)}</div>
+    <div class="btn-row">
+      <button class="btn edit-scam secondary">✏️ تعديل</button>
+      <button class="btn delete-scam danger">🗑️ حذف</button>
+    </div>
+    <div class="scam-edit-form hidden"></div>`;
+}
+
+function scamEditFormHtml(r) {
+  const fields = SCAM_EDIT_FIELDS.map(([key, label]) =>
+    `<div class="form-group"><label>${label}</label><input data-key="${key}" value="${esc(r[key] || "")}"></div>`).join("");
+  return `${fields}
+    <div class="form-group"><label>سبب البلاغ</label><textarea data-key="reason">${esc(r.reason || "")}</textarea></div>
+    <div class="btn-row">
+      <button class="btn save-scam" style="background:var(--success)">💾 حفظ</button>
+      <button class="btn cancel-scam secondary">إلغاء</button>
+    </div>`;
+}
+
+function wireScamManageCard(card, r) {
+  const editBtn = card.querySelector(".edit-scam");
+  const deleteBtn = card.querySelector(".delete-scam");
+  const formWrap = card.querySelector(".scam-edit-form");
+
+  editBtn.onclick = () => {
+    const opening = formWrap.classList.contains("hidden");
+    formWrap.classList.toggle("hidden", !opening);
+    editBtn.textContent = opening ? "✖️ إغلاق التعديل" : "✏️ تعديل";
+    if (opening && !formWrap.dataset.built) {
+      formWrap.innerHTML = scamEditFormHtml(r);
+      formWrap.dataset.built = "1";
+      formWrap.querySelector(".cancel-scam").onclick = () => { formWrap.classList.add("hidden"); editBtn.textContent = "✏️ تعديل"; };
+      formWrap.querySelector(".save-scam").onclick = async () => {
+        const body = { id: r.id };
+        formWrap.querySelectorAll("[data-key]").forEach(el => body[el.dataset.key] = el.value.trim());
+        try {
+          await api("/api/admin/scam/edit", { method: "POST", body: JSON.stringify(body) });
+          Object.assign(r, body);
+          card.innerHTML = scamManageCardBody(r);
+          wireScamManageCard(card, r);
+          toast("✅ تم الحفظ");
+        } catch (e) { toast("⚠️ " + e.message); }
+      };
+    }
+  };
+
+  let confirming = false;
+  deleteBtn.onclick = async () => {
+    if (!confirming) {
+      confirming = true;
+      deleteBtn.textContent = "‼️ اضغط مرة أخرى للتأكيد";
+      setTimeout(() => { confirming = false; deleteBtn.textContent = "🗑️ حذف"; }, 3000);
+      return;
+    }
+    try {
+      await api("/api/admin/scam/delete", { method: "POST", body: JSON.stringify({ id: r.id }) });
+      toast("🗑️ تم الحذف");
+      card.remove();
+    } catch (e) { toast("⚠️ " + e.message); }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // BROADCAST
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -239,6 +334,6 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-const VIEWS = { dashboard: viewDashboard, pending: viewPending, broadcast: viewBroadcast, users: viewUsers };
+const VIEWS = { dashboard: viewDashboard, pending: viewPending, scamManage: viewScamManage, broadcast: viewBroadcast, users: viewUsers };
 
 go("dashboard", {}, "👨‍💼 لوحة التحكم");
