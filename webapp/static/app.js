@@ -680,7 +680,7 @@ function viewTravelPost() {
     <div class="form-group"><label>تاريخ السفر</label><input type="date" id="f_date"></div>
     <div class="form-group"><label>معلومات الطيران (اختياري)</label><input id="f_flight" placeholder="مثال: Aeroflot SU1234"></div>
     <div class="form-group"><label>تفاصيل المغادرة/الوصول</label><input id="f_city" placeholder="مثال: مطار الجزائر — شيريميتيفو"></div>
-    <div class="form-group"><label>وسيلة التواصل</label><input id="f_contact" placeholder="مثال: @username"></div>
+    <div class="form-group"><label>وسيلة التواصل</label><input id="f_contact" class="ltr-field" dir="ltr" placeholder="مثال: @username"></div>
     <div class="form-group"><label>ملاحظة</label><textarea id="f_note" placeholder="اختياري"></textarea></div>
     <button class="btn" id="submitBtn">نشر الرحلة</button>`;
   let route = null;
@@ -937,6 +937,7 @@ function renderScamResults(res) {
         <span class="row-icon t-green"><svg class="icon-svg"><use href="#i-check"/></svg></span>
         <div class="feature-text">
           <span class="label">✅ هذا شخص ضامن موثوق</span>
+          ${g.full_name_ar ? `<span class="feature-count">${esc(g.full_name_ar)}</span>` : ""}
           <span class="feature-count">${esc(g.name)} ${esc(g.surname)} — ${esc(g.full_name_ru)}</span>
           <span class="feature-count ltr-field" dir="ltr">${esc(g.phone)}</span>
           ${contactHtml}

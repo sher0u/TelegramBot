@@ -1885,6 +1885,7 @@ def _fmt_guarantor_result(g: dict) -> str:
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📛 *الاسم:* {_esc(g['name'])}\n"
         f"👪 *اللقب:* {_esc(g['surname'])}\n"
+        f"🇸🇦 *بالعربية:* {_esc(g.get('full_name_ar') or '—')}\n"
         f"🇷🇺 *بالروسية:* {_esc(g.get('full_name_ru') or '—')}\n"
         f"📱 *الهاتف:* {_ltr(g['phone'])}\n"
         f"{contact_line}"

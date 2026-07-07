@@ -333,7 +333,7 @@ function viewBroadcast() {
 
 function viewUsers() {
   elApp.innerHTML = `
-    <div class="search-bar"><span class="icon">🔍</span><input id="userSearch" placeholder="بحث بالاسم، اليوزر، أو الـID"></div>
+    <div class="search-bar"><span class="icon">🔍</span><input id="userSearch" class="ltr-field" dir="ltr" placeholder="بحث بالاسم، اليوزر، أو الـID"></div>
     <div id="usersList"></div>`;
   document.getElementById("userSearch").oninput = debounce(async (e) => {
     const q = e.target.value.trim();

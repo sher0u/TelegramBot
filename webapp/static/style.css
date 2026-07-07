@@ -1012,7 +1012,7 @@ svg.icon-svg {
 
 .form-group textarea { resize: vertical; min-height: 90px; }
 
-.form-group input.ltr-field { direction: ltr; text-align: right; }
+input.ltr-field { direction: ltr; text-align: right; }
 
 .option-row { display: flex; flex-wrap: wrap; gap: 8px; }
 

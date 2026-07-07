@@ -17,7 +17,7 @@ NAME_FIELDS = ["full_name", "surname", "full_name_ru"]
 GUARANTORS = [
     {
         "name": "Yousfi", "surname": "Abdelkader", "full_name": "Yousfi Abdelkader",
-        "full_name_ru": "Юсфи Абделькадер", "phone": "+79158846143",
+        "full_name_ru": "Юсфи Абделькадер", "full_name_ar": "يوسفي عبدالقادر", "phone": "+79158846143",
         "contact": "https://t.me/Yousfi_Abdelkader", "contact_label": "تيليجرام",
     },
     {
@@ -88,7 +88,8 @@ def check_guarantor(value: str) -> dict | None:
     if not v:
         return None
     for g in GUARANTORS:
-        if v in (_norm(g["full_name"]), _norm(g["full_name_ru"]), _norm(g["name"]), _norm(g["surname"])):
+        if v in (_norm(g["full_name"]), _norm(g["full_name_ru"]), _norm(g.get("full_name_ar", "")),
+                 _norm(g["name"]), _norm(g["surname"])):
             return g
         if vphone and vphone == _phone_key(g["phone"]):
             return g
