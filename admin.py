@@ -873,6 +873,7 @@ def get_admin_handlers() -> list:
                 _ADMIN_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_check_password)],
             },
             fallbacks=[CommandHandler("cancel", admin_auth_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True,
             per_chat=True,
         )
@@ -886,6 +887,7 @@ def get_admin_handlers() -> list:
                 _BC_CONFIRM:[CallbackQueryHandler(bc_confirmed, pattern="^bc_(confirm|cancel)$")],
             },
             fallbacks=[CommandHandler("cancel", bc_cancel_cmd)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True,
             per_chat=True,
         )
@@ -896,6 +898,7 @@ def get_admin_handlers() -> list:
                 _ADMIN_VERIFY: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_receive)],
             },
             fallbacks=[CommandHandler("cancel", verify_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True,
             per_chat=True,
         )
@@ -911,6 +914,7 @@ def get_admin_handlers() -> list:
             },
             fallbacks=[CommandHandler("cancel", scam_add_cancel),
                        CallbackQueryHandler(scam_add_cancel, pattern="^sadd_cancel$")],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True,
             per_chat=True,
         )
@@ -937,6 +941,7 @@ def get_admin_handlers() -> list:
             },
             fallbacks=[CommandHandler("cancel", scam_mgr_exit),
                        CallbackQueryHandler(scam_mgr_exit, pattern="^adm_scam_exit$")],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True,
             per_chat=True,
         )

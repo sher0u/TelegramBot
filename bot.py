@@ -2186,6 +2186,7 @@ def main() -> None:
                                MessageHandler(filters.TEXT & ~filters.COMMAND, inq_notes)],
             },
             fallbacks=[CommandHandler("cancel", inq_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
@@ -2206,6 +2207,7 @@ def main() -> None:
                              MessageHandler(filters.TEXT & ~filters.COMMAND, mkt_get_photo)],
             },
             fallbacks=[CommandHandler("cancel", mkt_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
@@ -2225,6 +2227,7 @@ def main() -> None:
                 _RM_DESC:       [_rm_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, rm_get_desc)],
             },
             fallbacks=[CommandHandler("cancel", rm_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
@@ -2244,6 +2247,7 @@ def main() -> None:
                 _TRV_NOTE:    [_trv_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, trv_get_note)],
             },
             fallbacks=[CommandHandler("cancel", trv_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
@@ -2258,6 +2262,7 @@ def main() -> None:
                 _SCAM_CHECK_PICK:  [_scam_cxl, MessageHandler(filters.TEXT & ~filters.COMMAND, scam_check_pick)],
             },
             fallbacks=[CommandHandler("cancel", scam_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
@@ -2275,6 +2280,7 @@ def main() -> None:
                                  MessageHandler(filters.PHOTO, scam_get_photo)],
             },
             fallbacks=[CommandHandler("cancel", scam_cancel)],
+            allow_reentry=True,  # re-fire entry even if the user backed out mid-flow (dead-button fix)
             per_user=True, per_chat=True,
         )
 
