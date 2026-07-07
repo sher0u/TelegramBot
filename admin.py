@@ -23,6 +23,7 @@ from telegram.ext import (
 )
 
 import home_banner_storage as BANNER
+import scam_storage as SCAM
 from keyboards import (
     admin_panel_kb, admin_back_kb, broadcast_type_kb,
     broadcast_destinations_kb, broadcast_confirm_kb,
@@ -50,6 +51,20 @@ _GROUP_BOT_LINK_KB = InlineKeyboardMarkup([[
 
 _ADMIN_PASS = 0                                       # admin auth
 _BC_TYPE, _BC_MSG, _BC_DEST, _BC_CONFIRM = range(1, 5)  # broadcast
+_ADMIN_VERIFY = 5                                       # verify user by ID
+_SCAM_ADD_NAME, _SCAM_ADD_OPTIONAL, _SCAM_ADD_REASON = range(6, 9)  # add scammer directly
+
+SCAM_ADD_OPTIONAL_STEPS = [
+    ("surname", "👪 اللقب"),
+    ("full_name_ru", "🇷🇺 الاسم بالروسية"),
+    ("date_of_birth", "🎂 تاريخ الميلاد"),
+    ("telegram_user_id", "🆔 معرّف تيليجرام"),
+    ("phone", "📱 رقم الهاتف"),
+    ("ccp", "🏦 رقم CCP"),
+    ("cle_rip", "🔑 المفتاح/RIP"),
+    ("card", "💳 رقم البطاقة"),
+    ("passport", "🛂 رقم جواز السفر"),
+]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -480,6 +495,122 @@ async def verify_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+# ── Verify user (button-driven) ───────────────────────────────────────────────
+
+async def verify_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+    await query.message.reply_text(
+        "☑️ *توثيق مستخدم*\n\nأرسل معرّف المستخدم \\(User ID\\)، أو أعد توجيه رسالة منه:",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    return _ADMIN_VERIFY
+
+
+async def verify_receive(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    msg = update.message
+    target_id = None
+    if msg.forward_from:
+        target_id = msg.forward_from.id
+    elif msg.text and msg.text.strip().lstrip("-").isdigit():
+        target_id = int(msg.text.strip())
+    if target_id is None:
+        await msg.reply_text(
+            "⚠️ أرسل معرّف رقمي صحيح، أو أعد توجيه رسالة من المستخدم\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return _ADMIN_VERIFY
+    users = context.application.bot_data.get("users", {})
+    if str(target_id) not in users:
+        await msg.reply_text("❌ هذا المستخدم غير مسجل في البوت\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        return ConversationHandler.END
+    new_state = not is_verified(users, target_id)
+    set_verified(users, target_id, new_state)
+    await msg.reply_text(
+        f"☑️ تم توثيق المستخدم `{target_id}`\\." if new_state else f"تم إلغاء توثيق المستخدم `{target_id}`\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    return ConversationHandler.END
+
+
+async def verify_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    return ConversationHandler.END
+
+
+# ── Add scammer directly (button-driven, auto-approved) ──────────────────────
+
+async def scam_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+    context.user_data["sadd"] = {}
+    await query.message.reply_text(
+        "➕ *إضافة نصاب مباشرة \\(ينشر فورًا بدون مراجعة\\)*\n\n📛 أرسل الاسم الكامل:",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    return _SCAM_ADD_NAME
+
+
+async def _scam_add_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    idx = context.user_data["sadd_step"]
+    _, label = SCAM_ADD_OPTIONAL_STEPS[idx]
+    await update.message.reply_text(
+        f"{label} \\(اختياري — أرسل \\- للتخطي\\):",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+async def scam_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["sadd"]["full_name"] = update.message.text.strip()
+    context.user_data["sadd_step"] = 0
+    await _scam_add_prompt(update, context)
+    return _SCAM_ADD_OPTIONAL
+
+
+async def scam_add_optional(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    idx = context.user_data["sadd_step"]
+    key, _ = SCAM_ADD_OPTIONAL_STEPS[idx]
+    text = update.message.text.strip()
+    context.user_data["sadd"][key] = "" if text == "-" else text
+    context.user_data["sadd_step"] += 1
+    if context.user_data["sadd_step"] >= len(SCAM_ADD_OPTIONAL_STEPS):
+        await update.message.reply_text("⚠️ أرسل سبب الإضافة \\(مطلوب\\):", parse_mode=ParseMode.MARKDOWN_V2)
+        return _SCAM_ADD_REASON
+    await _scam_add_prompt(update, context)
+    return _SCAM_ADD_OPTIONAL
+
+
+async def scam_add_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    d = context.user_data.pop("sadd", {})
+    context.user_data.pop("sadd_step", None)
+    reason = update.message.text.strip()
+    user = update.effective_user
+    report = SCAM.add_report(
+        reporter_user_id=user.id, reporter_username=user.username, reporter_first_name=user.first_name,
+        full_name=d.get("full_name", ""), surname=d.get("surname", ""), full_name_ru=d.get("full_name_ru", ""),
+        date_of_birth=d.get("date_of_birth", ""), telegram_user_id=d.get("telegram_user_id", ""),
+        phone=d.get("phone", ""), ccp=d.get("ccp", ""), cle_rip=d.get("cle_rip", ""),
+        card=d.get("card", ""), passport=d.get("passport", ""), reason=reason, photos=[],
+    )
+    SCAM.approve_report(report["id"])
+    await update.message.reply_text(
+        f"✅ *تمت إضافة النصاب ونشره مباشرة\\.*\n🆔 `{report['id']}`",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    return ConversationHandler.END
+
+
+async def scam_add_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.pop("sadd", None)
+    context.user_data.pop("sadd_step", None)
+    await update.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    return ConversationHandler.END
+
+
 # ── Handler registration ──────────────────────────────────────────────────────
 
 def get_admin_handlers() -> list:
@@ -509,9 +640,33 @@ def get_admin_handlers() -> list:
             per_chat=True,
         )
 
+        verify_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(verify_start, pattern="^adm_verify_user$")],
+            states={
+                _ADMIN_VERIFY: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_receive)],
+            },
+            fallbacks=[CommandHandler("cancel", verify_cancel)],
+            per_user=True,
+            per_chat=True,
+        )
+
+        scam_add_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(scam_add_start, pattern="^adm_add_scammer$")],
+            states={
+                _SCAM_ADD_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_name)],
+                _SCAM_ADD_OPTIONAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_optional)],
+                _SCAM_ADD_REASON:   [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_reason)],
+            },
+            fallbacks=[CommandHandler("cancel", scam_add_cancel)],
+            per_user=True,
+            per_chat=True,
+        )
+
     return [
         admin_auth_conv,
         broadcast_conv,
+        verify_conv,
+        scam_add_conv,
         CallbackQueryHandler(panel_callback, pattern="^adm_(stats|refresh|panel|export)$"),
         CommandHandler("stats", stats_cmd),
         CommandHandler("broadcast", broadcast_cmd),

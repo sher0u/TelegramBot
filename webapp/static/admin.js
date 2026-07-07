@@ -172,8 +172,43 @@ const SCAM_EDIT_FIELDS = [
 ];
 
 async function viewScamManage() {
-  elApp.innerHTML = `<div id="scamManageList"></div>`;
+  elApp.innerHTML = `
+    <button class="btn" id="scamAddBtn">➕ إضافة نصاب جديد</button>
+    <div class="scam-edit-form hidden" id="scamAddForm"></div>
+    <div class="section-title">البلاغات المنشورة</div>
+    <div id="scamManageList"></div>`;
+  const addBtn = document.getElementById("scamAddBtn");
+  const addForm = document.getElementById("scamAddForm");
+  addBtn.onclick = () => {
+    const opening = addForm.classList.contains("hidden");
+    addForm.classList.toggle("hidden", !opening);
+    addBtn.textContent = opening ? "✖️ إغلاق" : "➕ إضافة نصاب جديد";
+    if (opening && !addForm.dataset.built) {
+      addForm.innerHTML = scamEditFormHtml({});
+      addForm.dataset.built = "1";
+      addForm.querySelector(".cancel-scam").onclick = () => { addForm.classList.add("hidden"); addBtn.textContent = "➕ إضافة نصاب جديد"; };
+      addForm.querySelector(".save-scam").textContent = "➕ إضافة ونشر";
+      addForm.querySelector(".save-scam").onclick = async () => {
+        const body = {};
+        addForm.querySelectorAll("[data-key]").forEach(el => body[el.dataset.key] = el.value.trim());
+        if (!body.full_name) { toast("⚠️ الاسم الكامل مطلوب"); return; }
+        try {
+          await api("/api/admin/scam/add", { method: "POST", body: JSON.stringify(body) });
+          toast("✅ تمت الإضافة والنشر");
+          addForm.classList.add("hidden");
+          addForm.dataset.built = "";
+          addBtn.textContent = "➕ إضافة نصاب جديد";
+          loadScamManageList();
+        } catch (e) { toast("⚠️ " + e.message); }
+      };
+    }
+  };
+  await loadScamManageList();
+}
+
+async function loadScamManageList() {
   const list = document.getElementById("scamManageList");
+  list.innerHTML = "";
   const reports = await api("/api/admin/scam/reports");
   if (!reports.length) { list.innerHTML = `<div class="empty">لا توجد بلاغات منشورة بعد</div>`; return; }
   for (const r of reports) {

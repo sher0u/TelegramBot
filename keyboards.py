@@ -221,6 +221,8 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
          InlineKeyboardButton("🔄 تحديث",              callback_data="adm_refresh")],
         [InlineKeyboardButton("🛒 إعلانات السوق",      callback_data="adm_mkt_list"),
          InlineKeyboardButton("🏠 إعلانات السكن",      callback_data="adm_rm_list")],
+        [InlineKeyboardButton("➕ إضافة نصاب",         callback_data="adm_add_scammer"),
+         InlineKeyboardButton("☑️ توثيق مستخدم",       callback_data="adm_verify_user")],
     ])
 
 

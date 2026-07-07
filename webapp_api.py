@@ -747,6 +747,37 @@ def admin_scam_reports(x_telegram_init_data: str = Header(default="")):
     return SCAM.get_approved_reports()
 
 
+class ScamAddBody(BaseModel):
+    full_name: str = ""
+    surname: str = ""
+    full_name_ru: str = ""
+    date_of_birth: str = ""
+    telegram_user_id: str = ""
+    phone: str = ""
+    ccp: str = ""
+    cle_rip: str = ""
+    card: str = ""
+    passport: str = ""
+    reason: str = ""
+
+
+@app.post("/api/admin/scam/add")
+def admin_scam_add(body: ScamAddBody, x_telegram_init_data: str = Header(default="")):
+    admin_user = _current_admin(x_telegram_init_data)
+    if not body.full_name.strip():
+        raise HTTPException(400, "full_name required")
+    report = SCAM.add_report(
+        reporter_user_id=admin_user["id"], reporter_username=admin_user.get("username"),
+        reporter_first_name=admin_user.get("first_name"),
+        full_name=body.full_name, surname=body.surname, full_name_ru=body.full_name_ru,
+        date_of_birth=body.date_of_birth, telegram_user_id=body.telegram_user_id,
+        phone=body.phone, ccp=body.ccp, cle_rip=body.cle_rip,
+        card=body.card, passport=body.passport, reason=body.reason, photos=[],
+    )
+    SCAM.approve_report(report["id"])
+    return {"ok": True, "id": report["id"]}
+
+
 class ScamEditBody(BaseModel):
     id: str
     full_name: str = ""
