@@ -441,15 +441,43 @@ def _mask(value: str) -> str:
         return "****"
     return "**** " + value[-4:]
 
+def _mask_phone(value: str) -> str:
+    """Show only the last 5 digits of a phone — enough to help recognize it,
+    not enough to give away the full number (privacy)."""
+    digits = _digits(value)
+    if not digits:
+        return ""
+    if len(digits) <= 5:
+        return "*" * len(digits)
+    return "*" * (len(digits) - 5) + digits[-5:]
+
+def _mask_dob(value: str) -> str:
+    """Day/month only — the birth year is never shown (privacy)."""
+    s = str(value or "").translate(_AR_DIGITS)
+    nums = re.findall(r"\d+", s)
+    if len(nums) == 3:
+        a, b, c = nums
+        if len(a) == 4:
+            m, d = b, c              # yyyy-mm-dd -> keep mm-dd
+        elif len(c) == 4:
+            d, m = a, b              # dd-mm-yyyy -> keep dd-mm
+        else:
+            d, m = a, b
+        if len(m) <= 2 and len(d) <= 2:
+            return f"{int(d):02d}/{int(m):02d}"
+    # unparseable shape — strip anything that looks like a 4-digit year
+    stripped = re.sub(r"\b\d{4}\b", "", s).strip(" /-.")
+    return stripped or ""
+
 def masked_report(r: dict) -> dict:
     return {
         "id": r["id"],
         "full_name": r["full_name"],
         "surname": r["surname"],
         "full_name_ru": r.get("full_name_ru", ""),
-        "date_of_birth": r["date_of_birth"],
+        "date_of_birth": _mask_dob(r["date_of_birth"]),
         "telegram_user_id": r["telegram_user_id"],
-        "phone": r["phone"],
+        "phone": _mask_phone(r["phone"]),
         "ccp": _mask(r["ccp"]),
         "cle_rip": _mask(r.get("cle_rip", "")),
         "card": _mask(r["card"]),
@@ -466,7 +494,7 @@ def _candidates(matches: list) -> list:
         "full_name": r["full_name"],
         "surname": r["surname"],
         "full_name_ru": r.get("full_name_ru", ""),
-        "date_of_birth": r["date_of_birth"],
+        "date_of_birth": _mask_dob(r["date_of_birth"]),
     } for r in matches[:MAX_CANDIDATES]]
 
 
