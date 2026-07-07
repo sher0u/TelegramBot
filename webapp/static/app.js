@@ -850,9 +850,10 @@ function viewScamCheck() {
 }
 
 const QUICK_SEARCH_MODES = {
-  any:       { label: "اكتب أي معلومة تعرفها عن الشخص", placeholder: "اسم، رقم هاتف، CCP، جواز سفر، معرّف تيليجرام..." },
-  full_name: { label: "اكتب الاسم فقط",                 placeholder: "مثال: أحمد" },
-  surname:   { label: "اكتب اللقب فقط",                  placeholder: "مثال: بن علي" },
+  any:           { label: "اكتب أي معلومة تعرفها عن الشخص", placeholder: "اسم، رقم هاتف، CCP، جواز سفر، معرّف تيليجرام...", type: "text" },
+  full_name:     { label: "اكتب الاسم فقط",                 placeholder: "مثال: أحمد", type: "text" },
+  surname:       { label: "اكتب اللقب فقط",                  placeholder: "مثال: بن علي", type: "text" },
+  date_of_birth: { label: "اختر تاريخ الميلاد",              placeholder: "", type: "date" },
 };
 
 function viewScamQuickSearch() {
@@ -861,10 +862,11 @@ function viewScamQuickSearch() {
       <div class="seg active" data-mode="any">أي معلومة</div>
       <div class="seg" data-mode="full_name">الاسم فقط</div>
       <div class="seg" data-mode="surname">اللقب فقط</div>
+      <div class="seg" data-mode="date_of_birth">تاريخ الميلاد</div>
     </div>
     <div class="form-group">
       <label id="quickLabel">${QUICK_SEARCH_MODES.any.label}</label>
-      <input id="quickQuery" placeholder="${QUICK_SEARCH_MODES.any.placeholder}">
+      <input id="quickQuery" type="text" placeholder="${QUICK_SEARCH_MODES.any.placeholder}">
     </div>
     <button class="btn" id="quickSearchBtn">تحقق الآن</button>
     <div id="scamResults"></div>`;
@@ -875,7 +877,9 @@ function viewScamQuickSearch() {
     mode = el.dataset.mode;
     segEls.forEach(s => s.classList.toggle("active", s === el));
     document.getElementById("quickLabel").textContent = QUICK_SEARCH_MODES[mode].label;
+    input.type = QUICK_SEARCH_MODES[mode].type;
     input.placeholder = QUICK_SEARCH_MODES[mode].placeholder;
+    input.value = "";
   });
   const run = async () => {
     const q = input.value.trim();

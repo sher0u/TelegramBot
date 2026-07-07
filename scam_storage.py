@@ -235,7 +235,9 @@ def search_reports(query: dict) -> dict:
     """Returns {"mode": "detail"|"candidates"|"none"|"guarantor", "results": [...]}.
     Hard identifiers (phone/ccp/card/...) are tried first, but a mismatch there
     doesn't hide a legitimate name match if a name was also given — it falls
-    back to name-based candidates instead of returning "none" outright."""
+    back to name-based candidates instead of returning "none" outright.
+    date_of_birth is searchable on its own (candidates of everyone born that
+    day) and narrows (AND) a name search when given alongside one."""
     q = {k: v for k, v in query.items() if v}
 
     for v in q.values():
@@ -246,23 +248,31 @@ def search_reports(query: dict) -> dict:
     approved = get_approved_reports()
     hard = {k: v for k, v in q.items() if k in HARD_FIELDS}
     name_qs = {k: v for k, v in q.items() if k in NAME_FIELDS}
+    dob = q.get("date_of_birth")
 
     if hard:
         matches = [r for r in approved if any(_matches_field(r, k, v) for k, v in hard.items())]
         if matches:
             return {"mode": "detail", "results": [masked_report(r) for r in matches]}
 
-    if not name_qs:
+    if not name_qs and not dob:
         return {"mode": "none", "results": []}
 
-    matches = [r for r in approved if any(_matches_field(r, k, v) for k, v in name_qs.items())]
+    if name_qs:
+        matches = [r for r in approved if any(_matches_field(r, k, v) for k, v in name_qs.items())]
+        if dob:
+            matches = [r for r in matches if _matches_field(r, "date_of_birth", dob)]
+    else:
+        matches = [r for r in approved if _matches_field(r, "date_of_birth", dob)]
+
     if not matches:
         return {"mode": "none", "results": []}
     return {"mode": "candidates", "results": _candidates(matches)}
 
 def smart_search(value: str) -> dict:
     """Bot chat entry point — a single free-text value, unknown which field it is.
-    Tries it against every hard identifier first, then falls back to a name match."""
+    Tries it against every hard identifier first, then falls back to a name
+    or date-of-birth match."""
     if not _norm(value):
         return {"mode": "none", "results": []}
 
@@ -276,7 +286,7 @@ def smart_search(value: str) -> dict:
     if matches:
         return {"mode": "detail", "results": [masked_report(r) for r in matches]}
 
-    matches = [r for r in approved if any(_matches_field(r, f, value) for f in NAME_FIELDS)]
+    matches = [r for r in approved if any(_matches_field(r, f, value) for f in NAME_FIELDS + ["date_of_birth"])]
     if not matches:
         return {"mode": "none", "results": []}
     return {"mode": "candidates", "results": _candidates(matches)}
