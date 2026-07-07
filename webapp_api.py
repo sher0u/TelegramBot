@@ -598,10 +598,10 @@ def scam_search(body: ScamSearch, x_telegram_init_data: str = Header(default="")
     if user["id"] not in ADMINS and not SCAM.check_and_bump_quota(user["id"]):
         raise HTTPException(429, f"لقد تجاوزت الحد الأقصى ({SCAM.DAILY_SEARCH_LIMIT} عمليات بحث يوميًا)")
     if body.query.strip():
-        return SCAM.smart_search(body.query)
+        return SCAM.smart_search(body.query, user_id=user["id"])
     fields = body.model_dump()
     fields.pop("query", None)
-    return SCAM.search_reports(fields)
+    return SCAM.search_reports(fields, user_id=user["id"])
 
 
 @app.get("/api/scam/report/{report_id}")

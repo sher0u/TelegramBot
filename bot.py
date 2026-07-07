@@ -1858,9 +1858,27 @@ async def trv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # شرلوك الجزائري — CHECK conversation
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _fmt_scam_result(r: dict) -> str:
+def _fmt_scam_result(r: dict, meta: dict | None = None) -> str:
+    meta = meta or {}
+    count = r.get("report_count", 1)
+    header = f"⚠️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
+    if count > 1:
+        header += f"🚩 *عدد البلاغات:* {count} \\(كل هذه بلاغات من أشخاص مختلفين\\)\n"
+    risk = (meta.get("risk") or {}).get("percent")
+    if risk:
+        header += f"📊 *نسبة الخطر:* {risk}%\n"
+
+    # every reporter's reason, so corroboration is visible
+    reasons = r.get("reasons") or ([{"reason": r.get("reason", "")}] if r.get("reason") else [])
+    if len(reasons) > 1:
+        reason_block = "⚠️ *الأسباب:*\n" + "\n".join(
+            f"  {i + 1}\\. {_esc(x['reason'])}" for i, x in enumerate(reasons) if x.get("reason")
+        ) + "\n"
+    else:
+        reason_block = f"⚠️ *السبب:* {_esc(reasons[0]['reason']) if reasons else '—'}\n"
+
     return (
-        f"⚠️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
+        header +
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🎂 *الميلاد:* {_esc(r.get('date_of_birth') or '—')}\n"
         f"🆔 *Telegram ID:* {_ltr(r.get('telegram_user_id') or '—')}\n"
@@ -1869,8 +1887,8 @@ def _fmt_scam_result(r: dict) -> str:
         f"🔑 *المفتاح/RIP:* {_ltr(r.get('cle_rip') or '—')}\n"
         f"💳 *البطاقة:* {_ltr(r.get('card') or '—')}\n"
         f"🛂 *الجواز:* {_ltr(r.get('passport') or '—')}\n"
-        f"⚠️ *السبب:* {_esc(r['reason'])}\n\n"
-        "_للاطلاع على التفاصيل الكاملة \\(غير مموّهة\\)، استخدم التطبيق المصغر وزر «طلب رؤية التفاصيل الكاملة»\\._"
+        + reason_block +
+        "\n_للاطلاع على التفاصيل الكاملة \\(غير مموّهة\\)، استخدم التطبيق المصغر وزر «طلب رؤية التفاصيل الكاملة»\\._"
     )
 
 
@@ -1907,9 +1925,14 @@ async def scam_check_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not is_admin(user.id) and not SCAM.check_and_bump_quota(user.id):
         await _conv_reply(update, context, C.SCAM_CHECK_QUOTA, KB.scam_menu_kb())
         return ConversationHandler.END
-    res = SCAM.smart_search(text)
+    res = SCAM.smart_search(text, user_id=user.id)
     if res["mode"] == "none":
         await _conv_reply(update, context, C.SCAM_CHECK_NONE, KB.scam_menu_kb())
+        return ConversationHandler.END
+    if res["mode"] == "suspicious":
+        msg = C.SCAM_CHECK_SUSPICIOUS.format(
+            searchers=res.get("searchers", 0), percent=(res.get("risk") or {}).get("percent", 0))
+        await _conv_reply(update, context, msg, KB.scam_menu_kb())
         return ConversationHandler.END
     if res["mode"] == "guarantor":
         await _conv_reply(update, context, _fmt_guarantor_result(res["results"][0]), KB.scam_menu_kb())
@@ -1917,11 +1940,13 @@ async def scam_check_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if res["mode"] == "candidates":
         context.user_data["scam_candidates"] = res["results"]
         lines = "\n".join(
-            f"{i + 1}\\. {_esc(c['full_name'])} {_esc(c['surname'])}" for i, c in enumerate(res["results"])
+            f"{i + 1}\\. {_esc(c['full_name'])} {_esc(c['surname'])}"
+            + (f" — {_esc(c['date_of_birth'])}" if c.get("date_of_birth") else "")
+            for i, c in enumerate(res["results"])
         )
         await _conv_reply(update, context, f"{C.SCAM_CHECK_PICK_PROMPT}\n\n{lines}", KB.scam_cancel_kb())
         return _SCAM_CHECK_PICK
-    await _conv_reply(update, context, _fmt_scam_result(res["results"][0]), KB.scam_menu_kb())
+    await _conv_reply(update, context, _fmt_scam_result(res["results"][0], res), KB.scam_menu_kb())
     return ConversationHandler.END
 
 

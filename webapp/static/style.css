@@ -1045,6 +1045,35 @@ input.ltr-field { direction: ltr; text-align: right; }
   box-shadow: var(--shadow);
 }
 
+/* Risk badge + suspicious-number box (شرلوك detective signal) */
+.risk-badge {
+  display: inline-block;
+  margin: 6px 0 12px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.risk-badge.risk-danger { background: var(--danger); color: #fff; }
+.risk-badge.risk-warn   { background: oklch(80% 0.15 75); color: #3a2600; }
+
+.suspicious-box {
+  background: oklch(96% 0.05 75);
+  border: 1px solid oklch(80% 0.13 75);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* fixed light-amber bg in both themes -> pin dark text so it never goes invisible */
+.suspicious-box .susp-title { font-size: 15px; font-weight: 800; color: oklch(45% 0.16 55); }
+.suspicious-box .feature-count { font-size: 13px; font-weight: 600; color: oklch(35% 0.04 60); line-height: 1.5; }
+
+.reasons-list { margin: 6px 14px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.reasons-list li { font-weight: 600; }
+
 .guarantor-result .row-icon { width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; }
 .guarantor-result .feature-text { display: flex; flex-direction: column; gap: 3px; }
 .guarantor-result .label { font-size: 14.5px; font-weight: 800; color: var(--success); }

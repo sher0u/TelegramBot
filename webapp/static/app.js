@@ -922,10 +922,27 @@ function viewScamCheckForm() {
   };
 }
 
+function riskBadge(res) {
+  const risk = res && res.risk;
+  if (!risk || !risk.percent) return "";
+  const cls = risk.level === "danger" ? "risk-danger" : "risk-warn";
+  return `<div class="risk-badge ${cls}">📊 ${risk.label ? esc(risk.label) + " — " : ""}نسبة الخطر ${risk.percent}%</div>`;
+}
+
 function renderScamResults(res) {
   const results = document.getElementById("scamResults");
   if (res.mode === "none") {
     results.innerHTML = `<div class="empty">${emptyIllus()}لا توجد بلاغات مطابقة — لكن هذا لا يعني أن الشخص موثوق، ابقَ حذرًا دائمًا</div>`;
+    return;
+  }
+  if (res.mode === "suspicious") {
+    results.innerHTML = `
+      <div class="suspicious-box">
+        <div class="susp-title">🟠 انتبه — رقم مشبوه</div>
+        <div class="feature-count">لا يوجد بلاغ مؤكد، لكن ${res.searchers} أشخاص بحثوا عن هذا الرقم. كثرة عمليات البحث قد تعني أن هذا الشخص يتواصل مع الكثيرين.</div>
+        ${riskBadge(res)}
+        <div class="feature-count">كن حذرًا جدًا قبل تحويل أي مبلغ.</div>
+      </div>`;
     return;
   }
   if (res.mode === "guarantor") {
@@ -963,13 +980,15 @@ function renderScamResults(res) {
     });
     return;
   }
-  results.innerHTML = `<div class="section-title">⚠️ تم العثور على ${res.results.length} بلاغ</div>`;
+  results.innerHTML = riskBadge(res) +
+    `<div class="section-title">⚠️ تم العثور على بلاغ مطابق</div>`;
   res.results.forEach(r => {
+    const count = r.report_count || 1;
     const card = document.createElement("div");
     card.className = "list-item";
     card.innerHTML = `
       <span class="row-icon t-danger"><svg class="icon-svg"><use href="#i-shield"/></svg></span>
-      <span class="title">${esc(r.full_name)} ${esc(r.surname)}</span>
+      <span class="title">${esc(r.full_name)} ${esc(r.surname)}${count > 1 ? ` — 🚩 ${count} بلاغات` : ""}</span>
       <span class="chevron">‹</span>`;
     card.onclick = () => showScamDetail(r);
     results.appendChild(card);
@@ -983,9 +1002,16 @@ function ltr(value) {
 
 function showScamDetail(r) {
   const photosHtml = (r.photos || []).map(p => `<img src="/api/photo/${p}">`).join("");
+  const count = r.report_count || 1;
+  const reasons = (r.reasons && r.reasons.length) ? r.reasons : (r.reason ? [{ reason: r.reason }] : []);
+  const reasonsHtml = reasons.length > 1
+    ? `<div class="detail-row"><b>الأسباب (${reasons.length} بلاغات):</b><ol class="reasons-list">${
+        reasons.map(x => `<li>${esc(x.reason)}</li>`).join("")}</ol></div>`
+    : `<div class="detail-row"><b>سبب البلاغ:</b> ${esc(reasons[0] ? reasons[0].reason : "—")}</div>`;
   const wrap = showDetail(`
     ${photosHtml}
     <h2>⚠️ ${esc(r.full_name)} ${esc(r.surname)}</h2>
+    ${count > 1 ? `<div class="detail-row"><b>🚩 عدد البلاغات:</b> ${count} — من أشخاص مختلفين</div>` : ""}
     ${r.full_name_ru ? `<div class="detail-row"><b>بالروسية:</b> ${esc(r.full_name_ru)}</div>` : ""}
     <div class="detail-row"><b>تاريخ الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
     <div class="detail-row"><b>معرّف تيليجرام:</b> ${ltr(r.telegram_user_id)}</div>
@@ -994,7 +1020,7 @@ function showScamDetail(r) {
     <div class="detail-row"><b>المفتاح/RIP:</b> ${ltr(r.cle_rip)}</div>
     <div class="detail-row"><b>البطاقة:</b> ${ltr(r.card)}</div>
     <div class="detail-row"><b>جواز السفر:</b> ${ltr(r.passport)}</div>
-    <div class="detail-row"><b>سبب البلاغ:</b> ${esc(r.reason)}</div>
+    ${reasonsHtml}
     <div class="scam-access-box">
       <textarea id="scamAccessReason" placeholder="اختياري: لماذا تريد التفاصيل الكاملة؟"></textarea>
       <button class="btn secondary" id="scamAccessBtn">🔓 طلب رؤية التفاصيل الكاملة</button>
