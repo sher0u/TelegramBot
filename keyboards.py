@@ -223,6 +223,7 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
          InlineKeyboardButton("🏠 إعلانات السكن",      callback_data="adm_rm_list")],
         [InlineKeyboardButton("➕ إضافة نصاب",         callback_data="adm_add_scammer"),
          InlineKeyboardButton("☑️ توثيق مستخدم",       callback_data="adm_verify_user")],
+        [InlineKeyboardButton("📁 إدارة النصابين",     callback_data="adm_scam_list")],
     ])
 
 
@@ -725,15 +726,92 @@ def scam_cancel_kb() -> InlineKeyboardMarkup:
 
 def scam_skip_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏭️ تخطي", callback_data="scam_skip_field")],
+        [InlineKeyboardButton("❌ لا أملك هذه المعلومة", callback_data="scam_skip_field")],
         [InlineKeyboardButton("❌ إلغاء", callback_data="scam_cancel_post")],
     ])
 
 
 def scam_skip_photo_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⏭️ تخطي", callback_data="scam_skip_photo")],
+        [InlineKeyboardButton("❌ لا أملك هذه المعلومة", callback_data="scam_skip_photo")],
         [InlineKeyboardButton("❌ إلغاء", callback_data="scam_cancel_post")],
+    ])
+
+
+def scam_add_skip_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ لا أملك هذه المعلومة", callback_data="sadd_skip_field")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="sadd_cancel")],
+    ])
+
+
+# ── Admin: manage scammer entries (view / edit / delete) ─────────────────────
+
+SCAM_EDIT_FIELDS = [
+    ("full_name",        "📛 الاسم الكامل"),
+    ("surname",          "👪 اللقب"),
+    ("full_name_ru",     "🇷🇺 الاسم بالروسية"),
+    ("date_of_birth",    "🎂 تاريخ الميلاد"),
+    ("telegram_user_id", "🆔 معرّف تيليجرام"),
+    ("phone",            "📱 رقم الهاتف"),
+    ("ccp",              "🏦 رقم CCP"),
+    ("cle_rip",          "🔑 المفتاح/RIP"),
+    ("card",             "💳 رقم البطاقة"),
+    ("passport",         "🛂 رقم جواز السفر"),
+    ("reason",           "⚠️ السبب"),
+]
+
+_SCAM_MGR_PAGE_SIZE = 8
+
+
+def admin_scam_list_kb(reports: list, page: int = 0) -> InlineKeyboardMarkup:
+    """Admin view: paginated list of all scammer entries (any status)."""
+    start = page * _SCAM_MGR_PAGE_SIZE
+    chunk = reports[start:start + _SCAM_MGR_PAGE_SIZE]
+    status_icon = {"approved": "✅", "pending": "⏳", "rejected": "❌"}
+    rows = []
+    for r in chunk:
+        icon  = status_icon.get(r.get("status"), "❔")
+        label = r.get("full_name") or "(بدون اسم)"
+        rows.append([InlineKeyboardButton(f"{icon} {label[:28]}", callback_data=f"adm_scam_view_{r['id']}")])
+    nav = []
+    if start > 0:
+        nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"adm_scam_pg_{page - 1}"))
+    if start + _SCAM_MGR_PAGE_SIZE < len(reports):
+        nav.append(InlineKeyboardButton("التالي ▶️", callback_data=f"adm_scam_pg_{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton("➕ إضافة نصاب جديد", callback_data="adm_add_scammer")])
+    rows.append([InlineKeyboardButton("🔙 لوحة التحكم", callback_data="adm_scam_exit")])
+    return InlineKeyboardMarkup(rows)
+
+
+def admin_scam_detail_kb(report_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✏️ تعديل البيانات", callback_data=f"adm_scam_editmenu_{report_id}")],
+        [InlineKeyboardButton("🗑️ حذف", callback_data=f"adm_scam_del_{report_id}")],
+        [InlineKeyboardButton("🔙 القائمة", callback_data="adm_scam_list")],
+    ])
+
+
+def admin_scam_edit_menu_kb(report_id: str) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(label, callback_data=f"adm_scam_editf_{report_id}_{key}")]
+            for key, label in SCAM_EDIT_FIELDS]
+    rows.append([InlineKeyboardButton("🔙 رجوع", callback_data=f"adm_scam_view_{report_id}")])
+    return InlineKeyboardMarkup(rows)
+
+
+def admin_scam_edit_value_kb(report_id: str, field: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ لا أملك هذه المعلومة (تفريغ)", callback_data=f"adm_scam_clearf_{report_id}_{field}")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data=f"adm_scam_editmenu_{report_id}")],
+    ])
+
+
+def admin_scam_delete_confirm_kb(report_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ نعم، احذف", callback_data=f"adm_scam_delc_{report_id}"),
+         InlineKeyboardButton("❌ إلغاء", callback_data=f"adm_scam_view_{report_id}")],
     ])
 
 

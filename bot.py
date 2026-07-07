@@ -63,6 +63,7 @@ _SCAM_NAME, _SCAM_OPTIONAL, _SCAM_REASON, _SCAM_PHOTO = range(50, 54)
 
 SCAM_OPTIONAL_STEPS = [
     ("surname",          "SCAM_REPORT_SURNAME"),
+    ("full_name_ru",     "SCAM_REPORT_NAME_RU"),
     ("date_of_birth",    "SCAM_REPORT_DOB"),
     ("telegram_user_id", "SCAM_REPORT_TGID"),
     ("phone",            "SCAM_REPORT_PHONE"),

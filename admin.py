@@ -26,7 +26,9 @@ import home_banner_storage as BANNER
 import scam_storage as SCAM
 from keyboards import (
     admin_panel_kb, admin_back_kb, broadcast_type_kb,
-    broadcast_destinations_kb, broadcast_confirm_kb,
+    broadcast_destinations_kb, broadcast_confirm_kb, scam_add_skip_kb,
+    admin_scam_list_kb, admin_scam_detail_kb, admin_scam_edit_menu_kb,
+    admin_scam_edit_value_kb, admin_scam_delete_confirm_kb, SCAM_EDIT_FIELDS,
 )
 from user_storage import get_stats, get_user_ids, is_verified, load_users, search_users, set_verified
 
@@ -53,6 +55,7 @@ _ADMIN_PASS = 0                                       # admin auth
 _BC_TYPE, _BC_MSG, _BC_DEST, _BC_CONFIRM = range(1, 5)  # broadcast
 _ADMIN_VERIFY = 5                                       # verify user by ID
 _SCAM_ADD_NAME, _SCAM_ADD_OPTIONAL, _SCAM_ADD_REASON = range(6, 9)  # add scammer directly
+_SCAM_MGR, _SCAM_MGR_VALUE = range(9, 11)               # browse/edit/delete existing scammer entries
 
 SCAM_ADD_OPTIONAL_STEPS = [
     ("surname", "👪 اللقب"),
@@ -576,13 +579,15 @@ async def scam_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return _SCAM_ADD_NAME
 
 
-async def _scam_add_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _scam_add_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool = False) -> None:
     idx = context.user_data["sadd_step"]
     _, label = SCAM_ADD_OPTIONAL_STEPS[idx]
-    await update.message.reply_text(
-        f"{label} \\(اختياري — أرسل \\- للتخطي\\):",
-        parse_mode=ParseMode.MARKDOWN_V2,
-    )
+    text = f"{label} \\(اختياري\\):"
+    kb = scam_add_skip_kb()
+    if via_callback:
+        await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
+    else:
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
 
 
 async def scam_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -592,17 +597,33 @@ async def scam_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return _SCAM_ADD_OPTIONAL
 
 
+async def _scam_add_advance(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool) -> int:
+    context.user_data["sadd_step"] += 1
+    if context.user_data["sadd_step"] >= len(SCAM_ADD_OPTIONAL_STEPS):
+        text = "⚠️ أرسل سبب الإضافة \\(مطلوب\\):"
+        if via_callback:
+            await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+        else:
+            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+        return _SCAM_ADD_REASON
+    await _scam_add_prompt(update, context, via_callback=via_callback)
+    return _SCAM_ADD_OPTIONAL
+
+
 async def scam_add_optional(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     idx = context.user_data["sadd_step"]
     key, _ = SCAM_ADD_OPTIONAL_STEPS[idx]
-    text = update.message.text.strip()
-    context.user_data["sadd"][key] = "" if text == "-" else text
-    context.user_data["sadd_step"] += 1
-    if context.user_data["sadd_step"] >= len(SCAM_ADD_OPTIONAL_STEPS):
-        await update.message.reply_text("⚠️ أرسل سبب الإضافة \\(مطلوب\\):", parse_mode=ParseMode.MARKDOWN_V2)
-        return _SCAM_ADD_REASON
-    await _scam_add_prompt(update, context)
-    return _SCAM_ADD_OPTIONAL
+    context.user_data["sadd"][key] = update.message.text.strip()
+    return await _scam_add_advance(update, context, via_callback=False)
+
+
+async def scam_add_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    idx = context.user_data["sadd_step"]
+    key, _ = SCAM_ADD_OPTIONAL_STEPS[idx]
+    context.user_data["sadd"][key] = ""
+    return await _scam_add_advance(update, context, via_callback=True)
 
 
 async def scam_add_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -628,7 +649,215 @@ async def scam_add_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def scam_add_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop("sadd", None)
     context.user_data.pop("sadd_step", None)
-    await update.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    else:
+        await update.message.reply_text("❌ تم الإلغاء\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    return ConversationHandler.END
+
+
+# ── Manage existing scammer entries (browse / view / edit / delete) ──────────
+
+def _sesc(text) -> str:
+    return escape_markdown(str(text) if text else "—", version=2)
+
+
+def _fmt_scam_admin_detail(r: dict) -> str:
+    status_label = {"approved": "✅ منشور", "pending": "⏳ قيد المراجعة", "rejected": "❌ مرفوض"}.get(
+        r.get("status"), r.get("status", "—")
+    )
+    lines = [
+        "🕵️ *بطاقة نصاب*",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        f"الحالة: {status_label}",
+        f"📛 *الاسم الكامل:* {_sesc(r.get('full_name'))}",
+        f"👪 *اللقب:* {_sesc(r.get('surname'))}",
+        f"🇷🇺 *الاسم بالروسية:* {_sesc(r.get('full_name_ru'))}",
+        f"🎂 *تاريخ الميلاد:* {_sesc(r.get('date_of_birth'))}",
+        f"🆔 *Telegram ID:* {_sesc(r.get('telegram_user_id'))}",
+        f"📱 *الهاتف:* {_sesc(r.get('phone'))}",
+        f"🏦 *CCP:* {_sesc(r.get('ccp'))}",
+        f"🔑 *المفتاح/RIP:* {_sesc(r.get('cle_rip'))}",
+        f"💳 *البطاقة:* {_sesc(r.get('card'))}",
+        f"🛂 *جواز السفر:* {_sesc(r.get('passport'))}",
+        f"⚠️ *السبب:* {_sesc(r.get('reason'))}",
+        f"🆔 *report\\_id:* `{r['id']}`",
+    ]
+    return "\n".join(lines)
+
+
+async def scam_mgr_open(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+    reports = SCAM.get_all_reports()
+    if not reports:
+        await query.edit_message_text(
+            "📭 *لا توجد أي إدخالات نصابين بعد\\.*",
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_back_kb(),
+        )
+        return ConversationHandler.END
+    context.user_data["smgr_page"] = 0
+    await query.edit_message_text(
+        f"📁 *إدارة النصابين* \\({len(reports)}\\)\n_اضغط على إدخال لعرضه أو تعديله_",
+        parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_scam_list_kb(reports, 0),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    page = int(query.data[len("adm_scam_pg_"):])
+    context.user_data["smgr_page"] = page
+    reports = SCAM.get_all_reports()
+    await query.edit_message_text(
+        f"📁 *إدارة النصابين* \\({len(reports)}\\)\n_اضغط على إدخال لعرضه أو تعديله_",
+        parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_scam_list_kb(reports, page),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_back_to_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    reports = SCAM.get_all_reports()
+    if not reports:
+        await query.edit_message_text(
+            "📭 *لا توجد أي إدخالات نصابين بعد\\.*",
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_back_kb(),
+        )
+        return ConversationHandler.END
+    page = context.user_data.get("smgr_page", 0)
+    await query.edit_message_text(
+        f"📁 *إدارة النصابين* \\({len(reports)}\\)\n_اضغط على إدخال لعرضه أو تعديله_",
+        parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_scam_list_kb(reports, page),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    report_id = query.data[len("adm_scam_view_"):]
+    r = SCAM.get_report_by_id(report_id)
+    if not r:
+        await query.answer("⚠️ هذا الإدخال لم يعد موجودًا", show_alert=True)
+        return await scam_mgr_back_to_list(update, context)
+    await query.edit_message_text(
+        _fmt_scam_admin_detail(r), parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_detail_kb(report_id),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    report_id = query.data[len("adm_scam_editmenu_"):]
+    r = SCAM.get_report_by_id(report_id)
+    if not r:
+        await query.answer("⚠️ هذا الإدخال لم يعد موجودًا", show_alert=True)
+        return await scam_mgr_back_to_list(update, context)
+    await query.edit_message_text(
+        "✏️ *اختر الحقل الذي تريد تعديله:*", parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_edit_menu_kb(report_id),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_edit_field_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    rest = query.data[len("adm_scam_editf_"):]
+    report_id, field = rest.split("_", 1)
+    r = SCAM.get_report_by_id(report_id)
+    if not r or field not in SCAM.EDITABLE_FIELDS:
+        await query.answer("⚠️ غير صالح", show_alert=True)
+        return await scam_mgr_back_to_list(update, context)
+    label = next((lbl for key, lbl in SCAM_EDIT_FIELDS if key == field), field)
+    context.user_data["smgr_edit"] = {"id": report_id, "field": field}
+    current = r.get(field) or "—"
+    await query.edit_message_text(
+        f"✏️ *{_sesc(label)}*\nالقيمة الحالية: {_sesc(current)}\n\nأرسل القيمة الجديدة:",
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_edit_value_kb(report_id, field),
+    )
+    return _SCAM_MGR_VALUE
+
+
+async def scam_mgr_edit_value_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    edit = context.user_data.pop("smgr_edit", None)
+    if not edit:
+        return _SCAM_MGR
+    new_value = update.message.text.strip()
+    SCAM.update_report(edit["id"], {edit["field"]: new_value})
+    r = SCAM.get_report_by_id(edit["id"])
+    await update.message.reply_text(
+        _fmt_scam_admin_detail(r), parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_detail_kb(edit["id"]),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_clear_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    rest = query.data[len("adm_scam_clearf_"):]
+    report_id, field = rest.split("_", 1)
+    context.user_data.pop("smgr_edit", None)
+    if field in SCAM.EDITABLE_FIELDS:
+        SCAM.update_report(report_id, {field: ""})
+    r = SCAM.get_report_by_id(report_id)
+    if not r:
+        return await scam_mgr_back_to_list(update, context)
+    await query.edit_message_text(
+        _fmt_scam_admin_detail(r), parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_detail_kb(report_id),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_delete_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    report_id = query.data[len("adm_scam_del_"):]
+    r = SCAM.get_report_by_id(report_id)
+    if not r:
+        return await scam_mgr_back_to_list(update, context)
+    await query.edit_message_text(
+        f"🗑️ *هل تريد حذف هذا الإدخال نهائيًا؟*\n\n{_fmt_scam_admin_detail(r)}",
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=admin_scam_delete_confirm_kb(report_id),
+    )
+    return _SCAM_MGR
+
+
+async def scam_mgr_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    report_id = query.data[len("adm_scam_delc_"):]
+    SCAM.delete_report(report_id)
+    await query.answer("🗑️ تم الحذف", show_alert=True)
+    return await scam_mgr_back_to_list(update, context)
+
+
+async def scam_mgr_exit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.pop("smgr_page", None)
+    context.user_data.pop("smgr_edit", None)
+    users = context.application.bot_data.get("users", {})
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text(
+            _panel_text(users), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_panel_kb(),
+        )
+    else:
+        await update.message.reply_text(
+            _panel_text(users), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=admin_panel_kb(),
+        )
     return ConversationHandler.END
 
 
@@ -675,10 +904,39 @@ def get_admin_handlers() -> list:
             entry_points=[CallbackQueryHandler(scam_add_start, pattern="^adm_add_scammer$")],
             states={
                 _SCAM_ADD_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_name)],
-                _SCAM_ADD_OPTIONAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_optional)],
+                _SCAM_ADD_OPTIONAL: [CallbackQueryHandler(scam_add_skip, pattern="^sadd_skip_field$"),
+                                     CallbackQueryHandler(scam_add_cancel, pattern="^sadd_cancel$"),
+                                     MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_optional)],
                 _SCAM_ADD_REASON:   [MessageHandler(filters.TEXT & ~filters.COMMAND, scam_add_reason)],
             },
-            fallbacks=[CommandHandler("cancel", scam_add_cancel)],
+            fallbacks=[CommandHandler("cancel", scam_add_cancel),
+                       CallbackQueryHandler(scam_add_cancel, pattern="^sadd_cancel$")],
+            per_user=True,
+            per_chat=True,
+        )
+
+        scam_mgr_conv = ConversationHandler(
+            entry_points=[CallbackQueryHandler(scam_mgr_open, pattern="^adm_scam_list$")],
+            states={
+                _SCAM_MGR: [
+                    CallbackQueryHandler(scam_mgr_page, pattern=r"^adm_scam_pg_\d+$"),
+                    CallbackQueryHandler(scam_mgr_back_to_list, pattern="^adm_scam_list$"),
+                    CallbackQueryHandler(scam_mgr_view, pattern=r"^adm_scam_view_.+$"),
+                    CallbackQueryHandler(scam_mgr_edit_menu, pattern=r"^adm_scam_editmenu_.+$"),
+                    CallbackQueryHandler(scam_mgr_edit_field_start, pattern=r"^adm_scam_editf_.+$"),
+                    CallbackQueryHandler(scam_mgr_clear_field, pattern=r"^adm_scam_clearf_.+$"),
+                    CallbackQueryHandler(scam_mgr_delete_confirm, pattern=r"^adm_scam_del_.+$"),
+                    CallbackQueryHandler(scam_mgr_delete, pattern=r"^adm_scam_delc_.+$"),
+                    CallbackQueryHandler(scam_mgr_exit, pattern="^adm_scam_exit$"),
+                ],
+                _SCAM_MGR_VALUE: [
+                    CallbackQueryHandler(scam_mgr_clear_field, pattern=r"^adm_scam_clearf_.+$"),
+                    CallbackQueryHandler(scam_mgr_edit_menu, pattern=r"^adm_scam_editmenu_.+$"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, scam_mgr_edit_value_received),
+                ],
+            },
+            fallbacks=[CommandHandler("cancel", scam_mgr_exit),
+                       CallbackQueryHandler(scam_mgr_exit, pattern="^adm_scam_exit$")],
             per_user=True,
             per_chat=True,
         )
@@ -688,6 +946,7 @@ def get_admin_handlers() -> list:
         broadcast_conv,
         verify_conv,
         scam_add_conv,
+        scam_mgr_conv,
         CallbackQueryHandler(panel_callback, pattern="^adm_(stats|refresh|panel|export)$"),
         CommandHandler("stats", stats_cmd),
         CommandHandler("broadcast", broadcast_cmd),
