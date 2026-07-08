@@ -176,16 +176,24 @@ def search_stats(keys, exclude_user=None) -> dict:
     return {"search_count": total, "searchers": len(users)}
 
 
+_REPORT_RISK_CAP  = 97   # never claim near-certainty off a handful of reports
+_REPORT_RISK_DECAY = 0.45  # smaller = faster climb per additional report
+
+
 def risk_score(reports: int, searchers: int) -> dict:
     """Combine confirmed reports (strong) with distinct searchers (soft) into a
-    single risk %. A filed report means near-certain danger; many people merely
-    *checking* an unreported number is a capped suspicion, never "confirmed"."""
+    single risk %. Uses diminishing returns so a single report reads as
+    moderate risk and it takes real corroboration (several independent
+    reports) to approach the cap — one report and ten reports must NOT look
+    the same. Search volume alone is a much softer, separately-capped signal."""
     if reports >= 1:
-        pct = min(99, 55 + 20 * reports + 3 * min(searchers, 10))
-        label = "خطر مؤكد" if reports >= 2 else "خطر مرتفع"
+        base = _REPORT_RISK_CAP * (1 - _REPORT_RISK_DECAY ** reports)
+        bonus = min(searchers, 20) * 0.3   # small, diminishing nudge — never decisive
+        pct = min(_REPORT_RISK_CAP, round(base + bonus))
+        label = "خطر مؤكد" if reports >= 3 else ("خطر مرتفع" if reports == 2 else "خطر محتمل")
         return {"percent": pct, "label": label, "level": "danger"}
     if searchers >= SUSPICIOUS_MIN_SEARCHERS:
-        pct = min(49, 12 + 7 * searchers)   # capped below "confirmed"
+        pct = min(45, 10 + 6 * searchers)   # capped well below the reported-risk floor
         return {"percent": pct, "label": "اشتباه", "level": "suspicious"}
     return {"percent": 0, "label": "", "level": "none"}
 
