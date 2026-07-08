@@ -1858,15 +1858,23 @@ async def trv_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # شرلوك الجزائري — CHECK conversation
 # ══════════════════════════════════════════════════════════════════════════════
 
+_RISK_EMOJI = {"danger": "🔴", "suspicious": "🟠", "none": "🟢"}
+
+
 def _fmt_scam_result(r: dict, meta: dict | None = None) -> str:
     meta = meta or {}
     count = r.get("report_count", 1)
-    header = f"⚠️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
+    header = f"🕵️ *{_esc(r['full_name'])} {_esc(r['surname'])}*\n"
+    risk = (meta.get("risk") or {}) or {}
+    pct = risk.get("percent")
+    if pct is not None:
+        emoji = _RISK_EMOJI.get(risk.get("level"), "🟠")
+        header += f"{emoji} *نسبة الخطورة:* {pct}%\n"
+    search_count = r.get("search_count")
+    if search_count:
+        header += f"🔍 *تم البحث عن هذا الرقم/الملف:* {search_count} مرة\n"
     if count > 1:
-        header += f"🚩 *عدد البلاغات:* {count} \\(كل هذه بلاغات من أشخاص مختلفين\\)\n"
-    risk = (meta.get("risk") or {}).get("percent")
-    if risk:
-        header += f"📊 *نسبة الخطر:* {risk}%\n"
+        header += f"📄 *عدد البلاغات المسجّلة:* {count}\n"
 
     # every reporter's reason, so corroboration is visible
     reasons = r.get("reasons") or ([{"reason": r.get("reason", "")}] if r.get("reason") else [])

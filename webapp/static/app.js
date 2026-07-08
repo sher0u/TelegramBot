@@ -1010,8 +1010,9 @@ function showScamDetail(r) {
     : `<div class="detail-row"><b>سبب البلاغ:</b> ${esc(reasons[0] ? reasons[0].reason : "—")}</div>`;
   const wrap = showDetail(`
     ${photosHtml}
-    <h2>⚠️ ${esc(r.full_name)} ${esc(r.surname)}</h2>
-    ${count > 1 ? `<div class="detail-row"><b>🚩 عدد البلاغات:</b> ${count} — من أشخاص مختلفين</div>` : ""}
+    <h2>🕵️ ${esc(r.full_name)} ${esc(r.surname)}</h2>
+    ${r.search_count ? `<div class="detail-row"><b>🔍 تم البحث عنه:</b> ${r.search_count} مرة</div>` : ""}
+    ${count > 1 ? `<div class="detail-row"><b>📄 عدد البلاغات المسجّلة:</b> ${count}</div>` : ""}
     ${r.full_name_ru ? `<div class="detail-row"><b>بالروسية:</b> ${esc(r.full_name_ru)}</div>` : ""}
     <div class="detail-row"><b>تاريخ الميلاد:</b> ${esc(r.date_of_birth || "—")}</div>
     <div class="detail-row"><b>معرّف تيليجرام:</b> ${ltr(r.telegram_user_id)}</div>

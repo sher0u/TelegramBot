@@ -436,20 +436,20 @@ def get_pending_reports() -> list:
 # ── Search ────────────────────────────────────────────────────────────────────
 
 def _mask(value: str) -> str:
+    """First 2 + last 2 characters visible, middle masked — enough to confirm
+    a match without revealing the full identifier (phone/CCP/card/RIP/passport)."""
     value = str(value or "")
     if len(value) <= 4:
-        return "****"
-    return "**** " + value[-4:]
+        return "*" * len(value) if value else ""
+    return value[:2] + "*" * (len(value) - 4) + value[-2:]
 
-def _mask_phone(value: str) -> str:
-    """Show only the last 5 digits of a phone — enough to help recognize it,
-    not enough to give away the full number (privacy)."""
-    digits = _digits(value)
-    if not digits:
-        return ""
-    if len(digits) <= 5:
-        return "*" * len(digits)
-    return "*" * (len(digits) - 5) + digits[-5:]
+_mask_phone = _mask
+
+def _mask_name(value: str) -> str:
+    """First letter of each word kept, the rest masked — e.g. 'Ahmed Ben Ali'
+    -> 'A**** B** A**'. Never reveals the full name."""
+    value = str(value or "")
+    return " ".join(w[0] + "*" * (len(w) - 1) if w else "" for w in value.split(" "))
 
 def _mask_dob(value: str) -> str:
     """Day/month only — the birth year is never shown (privacy)."""
@@ -469,14 +469,20 @@ def _mask_dob(value: str) -> str:
     stripped = re.sub(r"\b\d{4}\b", "", s).strip(" /-.")
     return stripped or ""
 
+def _report_search_count(r: dict) -> int:
+    """How many times this profile's identifiers have been looked up, across
+    everyone — shown to the searcher as a transparency signal."""
+    keys = _probe_keys_from_fields(r)
+    return search_stats(keys)["search_count"]
+
 def masked_report(r: dict) -> dict:
     return {
         "id": r["id"],
-        "full_name": r["full_name"],
-        "surname": r["surname"],
-        "full_name_ru": r.get("full_name_ru", ""),
+        "full_name": _mask_name(r["full_name"]),
+        "surname": _mask_name(r["surname"]),
+        "full_name_ru": _mask_name(r.get("full_name_ru", "")),
         "date_of_birth": _mask_dob(r["date_of_birth"]),
-        "telegram_user_id": r["telegram_user_id"],
+        "telegram_user_id": _mask(r["telegram_user_id"]),
         "phone": _mask_phone(r["phone"]),
         "ccp": _mask(r["ccp"]),
         "cle_rip": _mask(r.get("cle_rip", "")),
@@ -485,15 +491,16 @@ def masked_report(r: dict) -> dict:
         "reason": r["reason"],
         "photos": r["photos"],
         "created_at": r["created_at"],
+        "search_count": _report_search_count(r),
     }
 
 def _candidates(matches: list) -> list:
     matches = sorted(matches, key=lambda r: r.get("created_at", ""), reverse=True)
     return [{
         "id": r["id"],
-        "full_name": r["full_name"],
-        "surname": r["surname"],
-        "full_name_ru": r.get("full_name_ru", ""),
+        "full_name": _mask_name(r["full_name"]),
+        "surname": _mask_name(r["surname"]),
+        "full_name_ru": _mask_name(r.get("full_name_ru", "")),
         "date_of_birth": _mask_dob(r["date_of_birth"]),
     } for r in matches[:MAX_CANDIDATES]]
 
