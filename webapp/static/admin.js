@@ -123,9 +123,9 @@ function pendingCardBody(kind, it) {
   } else if (kind === "travel") {
     lines = `<div class="meta-line"><b>الاتجاه:</b> ${esc(it.route)}</div>
       <div class="meta-line"><b>التاريخ:</b> ${esc(it.date)} — <b>التفاصيل:</b> ${esc(it.city)}</div>
-      <div class="meta-line"><b>التواصل:</b> ${esc(it.contact)}</div>`;
+      <div class="meta-line"><b>التواصل:</b> ${ltr(it.contact)}</div>`;
   } else if (kind === "inquiries") {
-    lines = `<div class="meta-line"><b>الاسم:</b> ${esc(it.name)} — <b>الهاتف:</b> ${esc(it.phone)}</div>
+    lines = `<div class="meta-line"><b>الاسم:</b> ${esc(it.name)} — <b>الهاتف:</b> ${ltr(it.phone)}</div>
       <div class="meta-line"><b>الخدمة:</b> ${esc(it.service)}</div>
       <div class="meta-line"><b>ملاحظات:</b> ${esc(it.notes)}</div>`;
   } else if (kind === "scam_reports") {

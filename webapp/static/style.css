@@ -1013,6 +1013,11 @@ svg.icon-svg {
 .form-group textarea { resize: vertical; min-height: 90px; }
 
 input.ltr-field { direction: ltr; text-align: right; }
+/* non-input uses (spans wrapping phone/CCP/card/etc in RTL text) need the CSS
+   rule too, plus unicode-bidi:isolate — dir="ltr" alone doesn't stop neutral
+   characters (+, *, spaces) at the boundary from visually reordering inside
+   an RTL paragraph. */
+span.ltr-field, .ltr-field { direction: ltr; unicode-bidi: isolate; display: inline-block; }
 
 .option-row { display: flex; flex-wrap: wrap; gap: 8px; }
 

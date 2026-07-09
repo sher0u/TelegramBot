@@ -486,7 +486,7 @@ async def submit_travel(body: TravelSubmit, x_telegram_init_data: str = Header(d
         f"📅 *التاريخ:* {_esc(post['date'])}\n"
         f"✈️ *الطيران:* {_esc(post.get('flight'))}\n"
         f"📍 *التفاصيل:* {_esc(post['city'])}\n"
-        f"📞 *التواصل:* {_esc(post['contact'])}\n"
+        f"📞 *التواصل:* {_ltr(post['contact'])}\n"
         f"💬 *ملاحظة:* {_esc(post.get('note'))}\n"
         f"🆔 *post\\_id:* `{post['id']}`"
     )
@@ -513,7 +513,7 @@ async def submit_inquiry(body: InquirySubmit, x_telegram_init_data: str = Header
             f"🆔 *ID:* `{user['id']}`\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📛 *الاسم:* {_esc(item['name'])}\n"
-            f"📱 *الهاتف:* {_esc(item['phone'])}\n"
+            f"📱 *الهاتف:* {_ltr(item['phone'])}\n"
             f"🎯 *الخدمة:* {_esc(item['service'])}\n"
             f"💬 *ملاحظات:* {_esc(item['notes'])}\n"
             f"🆔 *inq\\_id:* `{item['id']}`"
@@ -530,7 +530,7 @@ async def submit_inquiry(body: InquirySubmit, x_telegram_init_data: str = Header
         f"🆔 *ID:* `{user['id']}`\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📛 *الاسم:* {_esc(body.name)}\n"
-        f"📱 *الهاتف:* {_esc(body.phone)}\n"
+        f"📱 *الهاتف:* {_ltr(body.phone)}\n"
         f"🎯 *الخدمة:* {_esc(body.service)}\n"
         f"💬 *ملاحظات:* {_esc(body.notes)}"
     )
@@ -881,7 +881,7 @@ async def admin_approve(body: ApproveBody, x_telegram_init_data: str = Header(de
         if body.publish:
             route = _esc(TRV.ROUTES.get(post["route"], post["route"]))
             text = (f"🧳 *هبطلي ولا طلعلي معاك*\n🧭 {route}\n📅 {_esc(post['date'])}\n"
-                    f"📍 {_esc(post['city'])}\n📞 {_esc(post['contact'])}")
+                    f"📍 {_esc(post['city'])}\n📞 {_ltr(post['contact'])}")
             await _notify_groups(text, post["user_id"])
     elif body.kind == "inquiry":
         item = INQS.get_by_id(body.id)

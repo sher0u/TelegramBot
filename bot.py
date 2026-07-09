@@ -378,7 +378,7 @@ def _fmt_travel(post: dict) -> str:
         f"📅 *التاريخ:* {_esc(post['date'])}\n"
         f"✈️ *الطيران:* {_esc(post.get('flight'))}\n"
         f"📍 *التفاصيل:* {_esc(post['city'])}\n"
-        f"📞 *التواصل:* {_esc(post['contact'])}\n"
+        f"📞 *التواصل:* {_ltr(post['contact'])}\n"
         f"💬 *ملاحظة:* {_esc(post.get('note'))}"
     )
 
@@ -422,7 +422,7 @@ async def _send_travel_to_admin(context, post: dict) -> None:
         f"📅 *التاريخ:* {_esc(post['date'])}\n"
         f"✈️ *الطيران:* {_esc(post.get('flight'))}\n"
         f"📍 *التفاصيل:* {_esc(post['city'])}\n"
-        f"📞 *التواصل:* {_esc(post['contact'])}\n"
+        f"📞 *التواصل:* {_ltr(post['contact'])}\n"
         f"💬 *ملاحظة:* {_esc(post.get('note'))}\n"
         f"🆔 *post\\_id:* `{post['id']}`"
     )
@@ -1405,11 +1405,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📛 *الاسم:* {_esc(report['full_name'])} {_esc(report['surname'])}\n"
                 f"🎂 *الميلاد:* {_esc(report['date_of_birth'])}\n"
-                f"🆔 *Telegram ID:* {_esc(report['telegram_user_id'])}\n"
-                f"📱 *الهاتف:* {_esc(report['phone'])}\n"
-                f"🏦 *CCP:* {_esc(report['ccp'])}\n"
-                f"💳 *البطاقة:* {_esc(report['card'])}\n"
-                f"🛂 *جواز السفر:* {_esc(report['passport'])}\n"
+                f"🆔 *Telegram ID:* {_ltr(report['telegram_user_id'])}\n"
+                f"📱 *الهاتف:* {_ltr(report['phone'])}\n"
+                f"🏦 *CCP:* {_ltr(report['ccp'])}\n"
+                f"💳 *البطاقة:* {_ltr(report['card'])}\n"
+                f"🛂 *جواز السفر:* {_ltr(report['passport'])}\n"
                 f"⚠️ *السبب:* {_esc(report['reason'])}"
             )
             try:
@@ -1532,7 +1532,7 @@ async def _forward_inquiry(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             f"🆔 *ID:* `{user.id}`\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📛 *الاسم:* {_esc(item['name'])}\n"
-            f"📱 *الهاتف:* {_esc(item['phone'])}\n"
+            f"📱 *الهاتف:* {_ltr(item['phone'])}\n"
             f"🎯 *الخدمة:* {_esc(item['service'])}\n"
             f"💬 *ملاحظات:* {_esc(item['notes'])}\n"
             f"🆔 *inq\\_id:* `{item['id']}`"
@@ -1546,7 +1546,7 @@ async def _forward_inquiry(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             f"🆔 *ID:* `{user.id}`\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📛 *الاسم:* {_esc(ud.get('inq_name'))}\n"
-            f"📱 *الهاتف:* {_esc(ud.get('inq_phone'))}\n"
+            f"📱 *الهاتف:* {_ltr(ud.get('inq_phone'))}\n"
             f"🎯 *الخدمة:* {_esc(ud.get('inq_service'))}\n"
             f"💬 *ملاحظات:* {_esc(ud.get('inq_notes'))}"
         )

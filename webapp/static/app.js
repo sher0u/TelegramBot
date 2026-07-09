@@ -665,7 +665,7 @@ async function openTravelDetail(id) {
     <div class="detail-row"><b>التاريخ:</b> ${esc(p.date)}</div>
     <div class="detail-row"><b>الطيران:</b> ${esc(p.flight)}</div>
     <div class="detail-row"><b>التفاصيل:</b> ${esc(p.city)}</div>
-    <div class="detail-row"><b>التواصل:</b> ${esc(p.contact)}${verifiedBadge(p)}</div>
+    <div class="detail-row"><b>التواصل:</b> ${ltr(p.contact)}${verifiedBadge(p)}</div>
     <div class="detail-row"><b>ملاحظة:</b> ${esc(p.note)}</div>`);
 }
 
