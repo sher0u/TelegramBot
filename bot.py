@@ -82,14 +82,18 @@ def _esc(text) -> str:
     return escape_markdown(str(text) if text else "—", version=2)
 
 
-_LRM = "‎"
+_LRI = "⁦"  # LEFT-TO-RIGHT ISOLATE
+_PDI = "⁩"  # POP DIRECTIONAL ISOLATE
 
 
 def _ltr(text) -> str:
-    """Wraps a value in Unicode LRM marks so digits/IDs render left-to-right
-    even when embedded in an RTL (Arabic) message."""
+    """Wraps a value in a Unicode LTR isolate so digits/IDs render left-to-right
+    even when embedded in an RTL (Arabic) message. A bare LRM mark is too weak
+    for strings with parentheses/dashes/spaces (e.g. "+7 (495) 937 46 00") —
+    those still get their token order reversed by the bidi algorithm. LRI/PDI
+    establishes a real isolated LTR run, which handles that case correctly."""
     s = _esc(text)
-    return f"{_LRM}{s}{_LRM}" if s and s != "—" else s
+    return f"{_LRI}{s}{_PDI}" if s and s != "—" else s
 
 
 async def _edit_or_reply(update: Update, text: str, keyboard=None, parse_mode=MD2) -> None:

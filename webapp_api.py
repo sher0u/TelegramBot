@@ -118,14 +118,17 @@ def _esc(text) -> str:
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', text)
 
 
-_LRM = "‎"
+_LRI = "⁦"  # LEFT-TO-RIGHT ISOLATE
+_PDI = "⁩"  # POP DIRECTIONAL ISOLATE
 
 
 def _ltr(text) -> str:
-    """Wraps a value in Unicode LRM marks so digits/IDs render left-to-right
-    even when embedded in an RTL (Arabic) Telegram message."""
+    """Wraps a value in a Unicode LTR isolate so digits/IDs render left-to-right
+    even when embedded in an RTL (Arabic) Telegram message. A bare LRM mark is
+    too weak for strings with parentheses/dashes/spaces — those still get
+    reordered by the bidi algorithm. LRI/PDI establishes a real isolated run."""
     s = _esc(text)
-    return f"{_LRM}{s}{_LRM}" if s and s != "—" else s
+    return f"{_LRI}{s}{_PDI}" if s and s != "—" else s
 
 
 def _approve_kb(prefix: str, item_id: str):

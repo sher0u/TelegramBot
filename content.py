@@ -7,6 +7,13 @@ Rules:
   • URLs in [text](url): text must be escaped, URL is raw
 """
 
+# Isolate marks for phone/address values embedded in RTL Arabic text — a bare
+# LRM mark is too weak for strings with parentheses/dashes/spaces (they still
+# get their token order reversed by the bidi algorithm); LRI/PDI establishes a
+# real isolated LTR run.
+_LRI = "⁦"  # LEFT-TO-RIGHT ISOLATE
+_PDI = "⁩"  # POP DIRECTIONAL ISOLATE
+
 # ── General ───────────────────────────────────────────────────────────────────
 
 WELCOME = (
@@ -198,14 +205,14 @@ CONSULAR_OTHER = (
 CONSULAR_CONTACT = (
     "📞 *التواصل مع القسم القنصلي*\n\n"
     "🏛️ سفارة الجزائر في موسكو\n\n"
-    "📱 *الهاتف:* ‎\\+7 495 739 0046‎\n"
-    "📱 *هاتف القسم القنصلي:* ‎\\+74959374600‎\n\n"
+    f"📱 *الهاتف:* {_LRI}\\+7 495 739 0046{_PDI}\n"
+    f"📱 *هاتف القسم القنصلي:* {_LRI}\\+74959374600{_PDI}\n\n"
     "📧 *البريد الإلكتروني:*\n"
-    "‎serviceconsulaire\\.dz@mail\\.ru‎\n"
-    "‎ambalg\\.moscou@mae\\.dz‎\n"
-    "‎embalg@mail\\.ru‎\n\n"
+    f"{_LRI}serviceconsulaire\\.dz@mail\\.ru{_PDI}\n"
+    f"{_LRI}ambalg\\.moscou@mae\\.dz{_PDI}\n"
+    f"{_LRI}embalg@mail\\.ru{_PDI}\n\n"
     "📍 *العنوان:*\n"
-    "‎Крапивенский пер\\., 1А, Москва, 127051‎\n\n"
+    f"{_LRI}Крапивенский пер\\., 1А, Москва, 127051{_PDI}\n\n"
     "_للاستفسار والمواعيد، اتصلوا مباشرة — الطاقم متعاون ويرد على جميع الاستفسارات_ 🙏"
 )
 
@@ -276,27 +283,27 @@ CONSULATE_CONTACT = (
     "🏢 *العنوان:*\n"
     "14, Impasse Bougandoura, El Biar, Alger\n\n"
     "📧 *البريد الإلكتروني:*\n"
-    "`rus.consulat@yandex.ru`\n\n"
+    f"`{_LRI}rus.consulat@yandex.ru{_PDI}`\n\n"
     "📞 *الهاتف:*\n"
-    "`+213 (0)20-28-09-28`\n\n"
+    f"`{_LRI}+213 (0)20-28-09-28{_PDI}`\n\n"
     "📠 *الفاكس:*\n"
-    "`+213 (0)23-37-68-67`"
+    f"`{_LRI}+213 (0)23-37-68-67{_PDI}`"
 )
 
 ALGERIAN_EMBASSY = (
     "🏛️ *سفارة الجزائر في روسيا*\n\n"
     "📞 *الهاتف:*\n"
-    "`+7 (495) 937 46 00`\n\n"
+    f"`{_LRI}+7 (495) 937 46 00{_PDI}`\n\n"
     "📍 *العنوان:*\n"
-    "Крапивенский пер\\., 1А, Москва, 127051\n\n"
+    f"{_LRI}Крапивенский пер\\., 1А, Москва, 127051{_PDI}\n\n"
     "لأي استفسار، لا تتردد في التواصل\\."
 )
 
 AIRLINE_CONTACT = (
     "✈️ *الخطوط الجوية الجزائرية — موسكو*\n\n"
     "📞 *أرقام الاتصال:*\n"
-    "`+7 (495) 909 24 59`\n"
-    "`+7 (926) 011 58 00`\n\n"
+    f"`{_LRI}+7 (495) 909 24 59{_PDI}`\n"
+    f"`{_LRI}+7 (926) 011 58 00{_PDI}`\n\n"
     "📍 *العنوان:*\n"
     "127550, Москва, Дмитровское ш\\., 27/19\n\n"
     "📧 *البريد الإلكتروني:*\n"
