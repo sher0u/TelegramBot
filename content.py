@@ -293,8 +293,7 @@ CONSULATE_CONTACT = (
 ALGERIAN_EMBASSY = (
     "🏛️ *سفارة الجزائر في روسيا*\n\n"
     "📞 *الهاتف:*\n"
-    f"`{_LRI}+7 (495) 937 46 00{_PDI}`\n"
-    f"`{_LRI}+74959374600{_PDI}`\n\n"
+    f"`{_LRI}+7 (495) 937 46 00{_PDI}`\n\n"
     "📧 *البريد الإلكتروني:*\n"
     f"`{_LRI}serviceconsulaire.dz@mail.ru{_PDI}`\n"
     f"`{_LRI}ambalg.moscou@mae.dz{_PDI}`\n"
